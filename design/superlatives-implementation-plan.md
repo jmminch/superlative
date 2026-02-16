@@ -3,6 +3,11 @@
 ## Status
 Draft v1, created February 16, 2026.
 
+## Progress
+- Completed: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7
+- In progress: Phase 8
+- Pending: Phase 9, Phase 10, Phase 11
+
 ## Goal
 Implement Superlatives as the sole game in this repository, using existing code only as temporary migration scaffolding, while adopting the recommended improved alternatives:
 - phase-based nested state model
@@ -144,7 +149,7 @@ Exit criteria:
 
 ## Phase 7: ContentProvider and Content Data
 Deliverables:
-- `data/superlatives.json` schema and loader.
+- `data/superlatives.yaml` source file and loader.
 - Provider interface abstraction.
 
 Tasks:
@@ -152,6 +157,7 @@ Tasks:
   - category has >= configured vote count superlatives
   - no empty labels/prompts
 - Implement selection without replacement per round.
+- Load YAML directly at server startup (no build-time YAML->JSON conversion step).
 
 Exit criteria:
 - Unit tests for content loading/validation failures.
@@ -220,15 +226,23 @@ Exit criteria:
 
 ## Suggested File Layout
 - `bin/superlatives_game.dart`
+- `bin/superlatives_state_machine.dart`
 - `bin/protocol.dart`
+- `bin/superlatives_engine.dart`
 - `bin/scoring.dart`
-- `data/superlatives.json`
+- `bin/state_projector.dart`
+- `bin/content_provider.dart`
+- `data/superlatives.yaml`
 - `web/player.js`
 - `web/display.js`
 - `web/display.html`
 - `test/superlatives_state_machine_test.dart`
+- `test/superlatives_phase1_test.dart`
 - `test/superlatives_scoring_test.dart`
 - `test/superlatives_protocol_test.dart`
+- `test/superlatives_engine_test.dart`
+- `test/superlatives_state_projector_test.dart`
+- `test/superlatives_content_provider_test.dart`
 - `test/superlatives_integration_test.dart`
 
 ## Risks and Mitigations

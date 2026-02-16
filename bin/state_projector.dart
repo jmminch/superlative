@@ -71,8 +71,8 @@ class StateProjector {
 
     if (phase is LobbyPhase) {
       payload['lobby'] = {
-        'canStart':
-            snapshot.activePlayerCount >= snapshot.config.minPlayersToStart
+        'canStart': snapshot.activePlayerSessions.length >=
+            snapshot.config.minPlayersToStart
       };
       return;
     }

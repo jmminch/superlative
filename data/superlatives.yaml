@@ -1,0 +1,32 @@
+categories:
+  - id: animals
+    label: Animals
+    superlatives:
+      - Cutest
+      - Loudest at 3AM
+      - Most likely to steal your snack
+      - Best sidekick
+
+  - id: foods
+    label: Foods
+    superlatives:
+      - Most comforting
+      - Messiest to eat in a car
+      - Best road trip snack
+      - Most likely to start an argument
+
+  - id: movies
+    label: Movies
+    superlatives:
+      - Most quotable
+      - Best ending
+      - Most rewatchable
+      - Most likely to make you cry
+
+  - id: places
+    label: Places
+    superlatives:
+      - Most relaxing
+      - Best for people-watching
+      - Most likely to get lost in
+      - Best spontaneous weekend trip

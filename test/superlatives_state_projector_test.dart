@@ -77,6 +77,39 @@ void main() {
   var projector = StateProjector(now: () => _baseNow);
 
   group('StateProjector role-scoped payloads', () {
+    test('lobby canStart counts active players only (not display sessions)',
+        () {
+      var snapshot = SuperlativesRoomSnapshot(
+        roomCode: 'ABCD',
+        hostPlayerId: 'p1',
+        config: const RoomConfig(minPlayersToStart: 3),
+        players: const {
+          'p1': PlayerSession(
+            playerId: 'p1',
+            displayName: 'ALPHA',
+            state: PlayerSessionState.active,
+          ),
+          'p2': PlayerSession(
+            playerId: 'p2',
+            displayName: 'BETA',
+            state: PlayerSessionState.active,
+          ),
+          'd1': PlayerSession(
+            playerId: 'd1',
+            displayName: 'DISPLAY',
+            role: SessionRole.display,
+            state: PlayerSessionState.active,
+          ),
+        },
+        currentGame: null,
+        phase: const LobbyPhase(),
+        updatedAt: _baseNow,
+      );
+
+      var displayPayload = projector.projectForDisplay(snapshot: snapshot);
+      expect(displayPayload['lobby']['canStart'], isFalse);
+    });
+
     test('player projection includes private submission flag in EntryInput',
         () {
       var phase = EntryInputPhase(
