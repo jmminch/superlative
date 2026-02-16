@@ -10,11 +10,12 @@ import 'questions.dart';
 class GameServer {
   Map<String, GameRoom> rooms = <String, GameRoom>{};
   late QuestionList questionList;
+  final bool superlativesEnabled;
 
-  GameServer();
+  GameServer({this.superlativesEnabled = false});
 
-  static Future<GameServer> load( ) async {
-    var s = GameServer();
+  static Future<GameServer> load({bool superlativesEnabled = false}) async {
+    var s = GameServer(superlativesEnabled: superlativesEnabled);
     s.questionList = await QuestionList.fromFile("./data/questions.json");
     return s;
   }
