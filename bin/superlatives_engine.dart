@@ -262,10 +262,7 @@ class GameEngine {
 
     var activePlayerIds =
         snapshot.activePlayerSessions.map((p) => p.playerId).toSet();
-    var graceSatisfied =
-        earliestVoteAt == null || !now.isBefore(earliestVoteAt);
     if (updatedRound.entries.length >= 2 &&
-        graceSatisfied &&
         activePlayerIds.isNotEmpty &&
         submitted.containsAll(activePlayerIds)) {
       closeEntryInput();

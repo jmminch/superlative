@@ -250,30 +250,7 @@ class RoomRuntime {
       ),
       now: DateTime.now,
       onAutoTransition: (_) => broadcastState(),
-      onAutoTimeout: (phase) {
-        if (phase is EntryInputPhase) {
-          var ok = _handleEntryInputTimeout();
-          if (ok) {
-            broadcastState();
-          }
-          return ok;
-        }
-        if (phase is VoteInputPhase) {
-          var ok = _closeVoteInputPhase();
-          if (ok) {
-            broadcastState();
-          }
-          return ok;
-        }
-        if (phase is RoundSummaryPhase) {
-          var ok = _advanceFromRoundSummary();
-          if (ok) {
-            broadcastState();
-          }
-          return ok;
-        }
-        return false;
-      },
+      onAutoTimeout: (_) => processAutoTimeoutForCurrentPhase(),
     );
 
     engine = GameEngine(
@@ -351,6 +328,7 @@ class RoomRuntime {
             : existing.state == PlayerSessionState.pending
                 ? PlayerSessionState.pending
                 : PlayerSessionState.active,
+        missedActions: 0,
       );
 
       stateMachine.snapshot = stateMachine.snapshot.copyWith(
@@ -443,8 +421,14 @@ class RoomRuntime {
       handled = _handleStartGame(playerId);
     } else if (event is SubmitEntryEvent) {
       handled = engine.submitEntry(playerId: playerId, text: event.text);
+      if (handled) {
+        _resetMissedActions(playerId);
+      }
     } else if (event is SubmitVoteEvent) {
       handled = engine.submitVote(playerId: playerId, entryId: event.entryId);
+      if (handled) {
+        _resetMissedActions(playerId);
+      }
       if (handled && _allActivePlayersVoted()) {
         handled = _closeVoteInputPhase();
       }
@@ -465,6 +449,36 @@ class RoomRuntime {
     }
 
     return handled;
+  }
+
+  bool processAutoTimeoutForCurrentPhase() {
+    var phase = stateMachine.snapshot.phase;
+
+    if (phase is EntryInputPhase) {
+      var ok = _handleEntryInputTimeout();
+      if (ok) {
+        broadcastState();
+      }
+      return ok;
+    }
+
+    if (phase is VoteInputPhase) {
+      var ok = _closeVoteInputPhase();
+      if (ok) {
+        broadcastState();
+      }
+      return ok;
+    }
+
+    if (phase is RoundSummaryPhase) {
+      var ok = _advanceFromRoundSummary();
+      if (ok) {
+        broadcastState();
+      }
+      return ok;
+    }
+
+    return false;
   }
 
   Map<String, int> metricsSnapshot() {
@@ -549,7 +563,94 @@ class RoomRuntime {
       return false;
     }
 
+    _applyMissedActionPenaltiesForVotePhase(phase);
     return engine.closeVotePhase();
+  }
+
+  bool _closeEntryInputPhase() {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! EntryInputPhase) {
+      return false;
+    }
+
+    _applyMissedActionPenaltiesForEntryPhase(phase);
+    return engine.closeEntryInput();
+  }
+
+  void _resetMissedActions(String playerId) {
+    var player = stateMachine.snapshot.players[playerId];
+    if (player == null ||
+        player.role != SessionRole.player ||
+        player.state == PlayerSessionState.disconnected) {
+      return;
+    }
+
+    if (player.missedActions == 0) {
+      return;
+    }
+
+    var players =
+        Map<String, PlayerSession>.from(stateMachine.snapshot.players);
+    players[playerId] = player.copyWith(missedActions: 0);
+    stateMachine.snapshot = stateMachine.snapshot.copyWith(
+      players: players,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _applyMissedActionPenaltiesForEntryPhase(EntryInputPhase phase) {
+    var activePlayers = stateMachine.snapshot.activePlayerSessions.toList();
+    for (var player in activePlayers) {
+      if (!phase.submittedPlayerIds.contains(player.playerId)) {
+        _registerMissedAction(player.playerId);
+      }
+    }
+  }
+
+  void _applyMissedActionPenaltiesForVotePhase(VoteInputPhase phase) {
+    var activePlayers = stateMachine.snapshot.activePlayerSessions.toList();
+    for (var player in activePlayers) {
+      if (!phase.votesByPlayer.containsKey(player.playerId)) {
+        _registerMissedAction(player.playerId);
+      }
+    }
+  }
+
+  void _registerMissedAction(String playerId) {
+    var player = stateMachine.snapshot.players[playerId];
+    if (player == null ||
+        player.role != SessionRole.player ||
+        player.state != PlayerSessionState.active) {
+      return;
+    }
+
+    var missed = player.missedActions + 1;
+    if (missed >= 3) {
+      _forceDisconnectForAfk(playerId);
+      return;
+    }
+
+    var players =
+        Map<String, PlayerSession>.from(stateMachine.snapshot.players);
+    players[playerId] = player.copyWith(missedActions: missed);
+    stateMachine.snapshot = stateMachine.snapshot.copyWith(
+      players: players,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _forceDisconnectForAfk(String playerId) {
+    var conn = connections[playerId];
+    if (conn != null) {
+      conn.socket.sink.add(ProtocolAdapter.encodeServerEvent(
+        event: 'disconnect',
+        payload: const {'message': 'Disconnected after 3 missed actions.'},
+      ));
+      conn.socket.sink.close();
+      connections.remove(playerId);
+    }
+
+    stateMachine.onPlayerDisconnected(playerId);
   }
 
   bool _handleEntryInputTimeout() {
@@ -571,7 +672,7 @@ class RoomRuntime {
       return _setEntryInputTimeout(phase.earliestVoteAt!);
     }
 
-    return engine.closeEntryInput();
+    return _closeEntryInputPhase();
   }
 
   bool _extendEntryInputTimeout(Duration by) {

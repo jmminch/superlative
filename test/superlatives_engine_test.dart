@@ -47,6 +47,7 @@ void _playRoundToSummary(GameEngine engine) {
   expect(engine.openEntryInput(), isTrue);
   expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
   expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+  expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
   for (var i = 0; i < 3; i++) {
     expect(engine.snapshot.phase, isA<VoteInputPhase>());
@@ -155,6 +156,7 @@ void main() {
       expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
       expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
       expect(engine.submitEntry(playerId: 'p3', text: 'PANDA'), isFalse);
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
       // Finish round quickly.
       for (var i = 0; i < 3; i++) {
@@ -239,6 +241,7 @@ void main() {
       expect(engine.openEntryInput(), isTrue);
       expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
       expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
       var round = engine.snapshot.currentGame!.rounds.last;
       var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
@@ -248,10 +251,29 @@ void main() {
   });
 
   group('Entry input gating', () {
-    test('does not auto-close entry input before second-entry grace', () {
+    test('does not auto-close entry input until all active players submit', () {
       var now = _now;
       var machine = RoomStateMachine(
-        snapshot: _baseSnapshot(),
+        snapshot: _baseSnapshot(
+          config: const RoomConfig(minPlayersToStart: 3),
+          players: const {
+            'p1': PlayerSession(
+              playerId: 'p1',
+              displayName: 'A',
+              state: PlayerSessionState.active,
+            ),
+            'p2': PlayerSession(
+              playerId: 'p2',
+              displayName: 'B',
+              state: PlayerSessionState.active,
+            ),
+            'p3': PlayerSession(
+              playerId: 'p3',
+              displayName: 'C',
+              state: PlayerSessionState.active,
+            ),
+          },
+        ),
         now: () => now,
       );
       var engine = GameEngine(
@@ -274,10 +296,10 @@ void main() {
       expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
       expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
 
-      // Both active players submitted, but less than 5s since second entry.
+      // Not all active players submitted, so input stays open.
       expect(engine.snapshot.phase, isA<EntryInputPhase>());
 
-      now = now.add(const Duration(seconds: 5));
+      // Host/runtime can still force-close the phase.
       expect(engine.closeEntryInput(), isTrue);
       expect(engine.snapshot.phase, isA<VoteInputPhase>());
     });

@@ -8,6 +8,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../bin/content_provider.dart';
 import '../bin/protocol.dart';
+import '../bin/superlatives_game.dart';
 import '../bin/superlatives_server.dart';
 
 class _TestWebSocketSink implements WebSocketSink {
@@ -226,6 +227,143 @@ void main() {
       expect(first.testSink.sent.isNotEmpty, isTrue);
       var disconnectMsg = _decodeEnvelope(first.testSink.sent.last);
       expect(disconnectMsg['event'], 'disconnect');
+    });
+
+    test('does not increment missed actions when entry phase timeout extends', () {
+      var room = RoomRuntime(
+        roomCode: 'TEST1',
+        contentProvider: _provider(),
+        random: Random(9),
+      );
+
+      var p1 = _TestWebSocketChannel();
+      var p2 = _TestWebSocketChannel();
+      var p3 = _TestWebSocketChannel();
+
+      var l1 = room.loginPlayer(displayName: 'alpha', socket: p1);
+      var l2 = room.loginPlayer(displayName: 'beta', socket: p2);
+      var l3 = room.loginPlayer(displayName: 'delta', socket: p3);
+
+      var hostId = l1.playerId!;
+      var p2Id = l2.playerId!;
+      var p3Id = l3.playerId!;
+
+      expect(room.handleEvent(playerId: hostId, event: const StartGameEvent()),
+          isTrue);
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
+
+      expect(
+        room.handleEvent(
+            playerId: hostId, event: const SubmitEntryEvent('RACCOON')),
+        isTrue,
+      );
+      expect(
+        room.handleEvent(playerId: p2Id, event: const SubmitEntryEvent('OTTER')),
+        isTrue,
+      );
+
+      expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
+      expect(room.stateMachine.snapshot.players[p3Id]!.missedActions, 0);
+    });
+
+    test('force disconnects player after 3 consecutive missed actions', () {
+      var room = RoomRuntime(
+        roomCode: 'TEST1',
+        contentProvider: _provider(),
+        random: Random(5),
+      );
+
+      var p1 = _TestWebSocketChannel();
+      var p2 = _TestWebSocketChannel();
+      var p3 = _TestWebSocketChannel();
+
+      var l1 = room.loginPlayer(displayName: 'alpha', socket: p1);
+      var l2 = room.loginPlayer(displayName: 'beta', socket: p2);
+      var l3 = room.loginPlayer(displayName: 'delta', socket: p3);
+
+      var hostId = l1.playerId!;
+      var p2Id = l2.playerId!;
+      var p3Id = l3.playerId!;
+
+      expect(room.handleEvent(playerId: hostId, event: const StartGameEvent()),
+          isTrue);
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
+
+      // Two players submit; p3 misses.
+      expect(
+        room.handleEvent(
+            playerId: hostId, event: const SubmitEntryEvent('RACCOON')),
+        isTrue,
+      );
+      expect(
+        room.handleEvent(
+            playerId: p2Id, event: const SubmitEntryEvent('OTTER')),
+        isTrue,
+      );
+      var phase = room.stateMachine.snapshot.phase as EntryInputPhase;
+      expect(
+        room.stateMachine.replaceCurrentPhase(
+          EntryInputPhase(
+            roundIndex: phase.roundIndex,
+            roundId: phase.roundId,
+            categoryLabel: phase.categoryLabel,
+            superlatives: phase.superlatives,
+            endsAt: DateTime.now(),
+            earliestVoteAt: DateTime.now(),
+            submittedPlayerIds: phase.submittedPlayerIds,
+          ),
+        ),
+        isTrue,
+      );
+      expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
+      expect(room.stateMachine.snapshot.players[p3Id]!.missedActions, 1);
+
+      var round = room.stateMachine.snapshot.currentGame!.rounds.last;
+      var targetEntryId = round.entries.first.entryId;
+      expect(
+        room.handleEvent(
+            playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
+        isTrue,
+      );
+      expect(
+        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
+        isTrue,
+      );
+      expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'VoteReveal');
+      expect(room.stateMachine.snapshot.players[p3Id]!.missedActions, 2);
+
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
+      expect(
+        room.handleEvent(
+            playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
+        isTrue,
+      );
+      expect(
+        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
+        isTrue,
+      );
+      expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
+
+      // Third missed action disconnects p3.
+      expect(
+        room.stateMachine.snapshot.players[p3Id]!.state,
+        PlayerSessionState.disconnected,
+      );
+      expect(room.connections.containsKey(p3Id), isFalse);
+
+      // Player got an explicit disconnect event.
+      expect(p3.testSink.sent.isNotEmpty, isTrue);
+      var last = _decodeEnvelope(p3.testSink.sent.last);
+      expect(last['event'], 'disconnect');
     });
   });
 }

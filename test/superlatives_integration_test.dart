@@ -90,9 +90,6 @@ void _submitRound(RoomRuntime room, String p1, String p2, String p3) {
   expect(room.handleEvent(playerId: p3, event: const SubmitEntryEvent('C1')),
       isTrue);
 
-  // Integration tests bypass timer wait and move to voting directly.
-  expect(room.stateMachine.onEntryTimeout(), isTrue);
-  room.broadcastState();
   expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
 
   for (var i = 0; i < 3; i++) {
