@@ -215,6 +215,9 @@ class RoomRuntime {
   final String roomCode;
   final ContentProvider _contentProvider;
   final Random _random;
+  int totalLogins = 0;
+  int reconnectCount = 0;
+  int invalidEventCount = 0;
 
   late RoomStateMachine stateMachine;
   late GameEngine engine;
@@ -332,6 +335,7 @@ class RoomRuntime {
         updatedAt: DateTime.now(),
       );
     } else {
+      reconnectCount++;
       var existing = players[playerId];
       if (existing == null) {
         return LoginOutcome.failure(const ProtocolError(
@@ -356,6 +360,7 @@ class RoomRuntime {
       stateMachine.onPlayerReconnected(playerId);
     }
 
+    totalLogins++;
     _attachConnection(playerId, socket);
     return LoginOutcome.success(playerId);
   }
@@ -377,6 +382,7 @@ class RoomRuntime {
       updatedAt: DateTime.now(),
     );
 
+    totalLogins++;
     _attachConnection(displayId, socket);
     return LoginOutcome.success(displayId);
   }
@@ -454,9 +460,20 @@ class RoomRuntime {
 
     if (handled) {
       broadcastState();
+    } else {
+      invalidEventCount++;
     }
 
     return handled;
+  }
+
+  Map<String, int> metricsSnapshot() {
+    return {
+      'totalLogins': totalLogins,
+      'reconnectCount': reconnectCount,
+      'invalidEventCount': invalidEventCount,
+      'activeConnections': connections.length,
+    };
   }
 
   bool _handleStartGame(String hostPlayerId) {

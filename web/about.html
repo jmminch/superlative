@@ -1,83 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>What If?</title>
+  <title>Superlatives</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="client.css">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="header">
-    <div id="header-title">WHAT IF?</div>
+    <div id="header-title">SUPERLATIVES</div>
   </div>
 
-<div style="padding: 0px 10px">
-  <p><i>What If?</i> is a party game where players answer multiple-choice
-  hypothetical questions about the other players.  The object is to pick the
-  answer that received the most votes.  It works best with players that know
-  each other, and can work with either a local (in-person) group, or with a
-  group phone or video chat.</p>
+  <main id="app">
+    <section class="screen active">
+      <h2>About</h2>
+      <p><i>Superlatives</i> is a synchronous social party game.</p>
 
-  <p>While it's possible to play with just two players (or alone, if you
-  like answering questions about yourself), the scoring system is designed
-  for at least three players, and the game is best with a larger group.</p>
+      <p>Each round has a category. Every player submits one entry for that
+      category, then all players vote across several superlative prompts.</p>
 
-  <p>Each player logs in with their name (nicknames are fine, but remember
-  that everyone needs to recognize who you are) and a room code, which can
-  be any word or phrase that the group selected.  All players who enter the
-  same room code will be playing together.</p>
+      <p>Scoring is proportional to vote share each prompt. The game works best
+      with players who can talk to each other (in person or voice/video chat).</p>
 
-  <p>Once all players have joined, one player should press the “Start game”
-  button to begin the game.  That player becomes the host and is responsible
-  for determining when to move from one question to the next.  Players may
-  join or leave the game at any time.</p>
+      <p>Clients:</p>
+      <ul>
+        <li>Player client: submit entries and votes</li>
+        <li>Display client: shared-room board view</li>
+      </ul>
 
-  <p>For each round, a hypothetical question is shown, such as “If JAMES
-  were a flavor of ice cream, which would he be?”  All players are presented
-  with a multiple-choice list of responses, and should choose whichever one
-  they feel fits the question best.</p>
+      <p style="text-align: center"><a href="index.html">Return to player client</a></p>
+      <p style="text-align: center"><a href="display.html">Open display client</a></p>
 
-  <p>After all players have chosen an answer, the players that chose the
-  <em>most popular</em> answer are awarded 1,000 points.  If multiple
-  answers tied for being the most popular, then that award is reduced.
-  In addition, the player who the question was about will be penalized 500
-  points if they choose the wrong answer.</p>
-
-  <p>The game is similar to <i>iMAgiNiff</i> by Buffalo Games, which from
-  what I can tell has been out of production for at least several years.</p>
-
-  <p style="text-align: center"><a href="index.html">Return to game</a></p>
-
-  <h2>Copyright and License</h2>
-
-  <p><i>What If?</i> is open-source software.  The development website is
-  located at <a href="https://github.com/jmminch/whatif">
-  https://github.com/jmminch/whatif</a>.  For questions, comments, or
-  suggestions, please e-mail <a href="mailto:jxminch+wi@gmail.com">
-  jxminch+wi@gmail.com</a>.</p>
-
-  <p>Copyright 2020-2022 Jared Minch</p>
-
-  <p>Permission is hereby granted, free of charge, to any person obtaining
-  a copy of this software and associated documentation files (the
-  "Software"), to deal in the Software without restriction, including
-  without limitation the rights to use, copy, modify, merge, publish,
-  distribute, sublicense, and/or sell copies of the Software, and to
-  permit persons to whom the Software is furnished to do so, subject to
-  the following conditions:</p>
-
-  <p>The above copyright notice and this permission notice shall be
-  included in all copies or substantial portions of the Software.</p>
-
-  <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
-</div>
-
+      <h2>License</h2>
+      <p>Copyright 2020-2026 Jared Minch</p>
+      <p>Released under the MIT License. See repository <code>LICENSE</code> file for full text.</p>
+    </section>
+  </main>
 </body>
 </html>

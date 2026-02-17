@@ -353,11 +353,11 @@ Rules:
 - Host controls remain player-only; display is read-only.
 
 ## Mapping to Current Code
-- Use current room lifecycle/socket plumbing in `bin/game.dart` and `bin/server.dart` only as migration scaffolding.
+- Use the Superlatives room lifecycle/socket runtime in `bin/superlatives_server.dart` and `bin/server.dart`.
 - Replace question-target model with category/entry/vote model.
-- Replace single client flow (`web/client.js`) with role-aware routes/screens.
+- Use role-aware routes/screens (`web/player.js`, `web/display.js`).
 - Keep existing `web/` static hosting model.
-- Remove What If-specific codepaths/assets after Superlatives cutover is stable.
+- Keep repository runtime paths Superlatives-only.
 
 ## Suggested File Additions/Refactors
 - `bin/superlatives_game.dart` (new engine and state machine)

@@ -1,7 +1,7 @@
-name: whatif
-description: A party guessing game
-version: 0.2.2
-homepage: https://github.com/jmminch/whatif
+name: superlative
+description: A synchronous superlatives party game with player and display clients
+version: 0.3.0
+homepage: https://github.com/jmminch/superlative
 
 environment:
   sdk: '>=2.17.0 <3.0.0'

@@ -7,28 +7,7 @@ import 'package:shelf_static/shelf_static.dart';
 
 import 'superlatives_server.dart';
 
-bool envFlag(String name, {bool defaultValue = false}) {
-  var raw = Platform.environment[name];
-  if (raw == null) return defaultValue;
-
-  switch (raw.trim().toLowerCase()) {
-    case "1":
-    case "true":
-    case "yes":
-    case "on":
-      return true;
-    case "0":
-    case "false":
-    case "no":
-    case "off":
-      return false;
-    default:
-      return defaultValue;
-  }
-}
-
 void main(List<String> args) async {
-  var superlativesEnabled = envFlag("SUPERLATIVES_ENABLED", defaultValue: true);
   var game = await SuperlativesServer.load();
 
   final wsHandler = webSocketHandler((s) => game.connectSocket(s));
@@ -52,7 +31,6 @@ void main(List<String> args) async {
   final port = int.parse(Platform.environment['PORT'] ?? '36912');
   final server = await serve(pipeline, ip, port);
   print('Server listening on port ${server.port}');
-  print('SUPERLATIVES_ENABLED=$superlativesEnabled');
 
   // Shut down on SIGTERM
   ProcessSignal.sigterm.watch().listen((sig) {
