@@ -3,30 +3,100 @@ categories:
     label: Animals
     superlatives:
       - Cutest
-      - Loudest at 3AM
-      - Most likely to steal your snack
-      - Best sidekick
+      - Biggest
+      - Smallest
+      - Most frightening
+      - Most ferocious
+      - Best pet
+      - Worst pet
+      - Rarest
+      - Most common
+      - Most likely to be found in your neighborhood
+      - Best college mascot
 
   - id: foods
     label: Foods
     superlatives:
-      - Most comforting
+      - Tastiest
+      - Worst-tasting
+      - Best for dessert
+      - Best for breakfast
+      - Most likely found in your garden
+      - Healthiest
+      - Least healthy
+      - Strongest-smelling
       - Messiest to eat in a car
       - Best road trip snack
-      - Most likely to start an argument
 
   - id: movies
     label: Movies
     superlatives:
       - Most quotable
-      - Best ending
-      - Most rewatchable
       - Most likely to make you cry
+      - Funniest
+      - Scariest
+      - Most action-packed
+      - Most mindless
+      - Most interesting
+      - Least interesting
+      - Most popular
+      - Least well-known
 
   - id: places
     label: Places
     superlatives:
+      - Best vacation spot
+      - Worst vacation spot
+      - Worst to be lost at
+      - Coldest
+      - Smallest
+      - Largest
+
+  - id: garage
+    label: Things found in a garage
+    superlatives:
+      - Most likely to cause a minor injury
+      - Most used
+      - Least used
+      - Most likely to be broken
+      - Most likely to be lost
+      - Most satisfying
+      - Most likely to leak
+      - Most likely to be older than the house
+
+  - id: villains
+    label: Villains
+    superlatives:
+      - Most misunderstood
+      - Most likely to win
+      - Most petty
+      - Most stylish
+      - Most intimidating
+      - Least intimidating
+      - Most tragic backstory
+      - Most evil
+      - Most comical
+
+  - id: famous_people
+    label: Famous people
+    superlatives:
+      - Best choice for President
+      - Most likely to survive a zombie attack
+      - Most likely to be seen in your hometown
+      - Most famous
+      - Least well-known
+      - Richest
+    
+  - id: hobbies
+    label: Hobbies
+    superlatives:
+      - Most expensive
+      - Cheapest
       - Most relaxing
-      - Best for people-watching
-      - Most likely to get lost in
-      - Best spontaneous weekend trip
+      - Most competitive
+      - Most likely to make money
+      - Most exciting
+      - Most boring
+      - Hardest
+      - Easiest
+
