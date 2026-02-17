@@ -4,9 +4,9 @@
 Draft v1, created February 16, 2026.
 
 ## Progress
-- Completed: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7
-- In progress: Phase 8
-- Pending: Phase 9, Phase 10, Phase 11
+- Completed: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 9
+- In progress: Phase 8, Phase 10
+- Pending: Phase 11
 
 ## Goal
 Implement Superlatives as the sole game in this repository, using existing code only as temporary migration scaffolding, while adopting the recommended improved alternatives:

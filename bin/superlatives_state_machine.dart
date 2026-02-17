@@ -32,6 +32,8 @@ class RoomStateMachine {
   final PhaseTimerScheduler _timerScheduler;
   final DateTime Function() _now;
   final Duration hostGraceDuration;
+  final void Function(SuperlativesRoomSnapshot snapshot)? onAutoTransition;
+  final bool Function(GamePhaseState phase)? onAutoTimeout;
 
   CancelTimer? _cancelPhaseTimer;
   CancelTimer? _cancelHostGraceTimer;
@@ -41,6 +43,8 @@ class RoomStateMachine {
     PhaseTimerScheduler? timerScheduler,
     DateTime Function()? now,
     Duration? hostGraceDuration,
+    this.onAutoTransition,
+    this.onAutoTimeout,
   })  : _timerScheduler = timerScheduler ?? DartPhaseTimerScheduler(),
         _now = now ?? DateTime.now,
         hostGraceDuration = hostGraceDuration ?? const Duration(seconds: 10) {
@@ -49,6 +53,15 @@ class RoomStateMachine {
 
   bool transitionTo(GamePhaseState newPhase) {
     if (!_isValidTransition(snapshot.phase, newPhase)) {
+      return false;
+    }
+
+    _applyPhase(newPhase);
+    return true;
+  }
+
+  bool replaceCurrentPhase(GamePhaseState newPhase) {
+    if (snapshot.phase.runtimeType != newPhase.runtimeType) {
       return false;
     }
 
@@ -365,20 +378,32 @@ class RoomStateMachine {
     _cancelPhaseTimer = null;
 
     var phase = snapshot.phase;
+    if (onAutoTimeout != null && onAutoTimeout!(phase)) {
+      return;
+    }
+
     if (phase is RoundIntroPhase) {
-      onRoundIntroTimeout();
+      if (onRoundIntroTimeout()) {
+        onAutoTransition?.call(snapshot);
+      }
       return;
     }
     if (phase is EntryInputPhase) {
-      onEntryTimeout();
+      if (onEntryTimeout()) {
+        onAutoTransition?.call(snapshot);
+      }
       return;
     }
     if (phase is VoteInputPhase) {
-      onVoteTimeout();
+      if (onVoteTimeout()) {
+        onAutoTransition?.call(snapshot);
+      }
       return;
     }
     if (phase is VoteRevealPhase) {
-      onRevealTimeout();
+      if (onRevealTimeout()) {
+        onAutoTransition?.call(snapshot);
+      }
       return;
     }
   }
@@ -413,5 +438,6 @@ class RoomStateMachine {
       hostPlayerId: candidates.first.playerId,
       updatedAt: _now(),
     );
+    onAutoTransition?.call(snapshot);
   }
 }

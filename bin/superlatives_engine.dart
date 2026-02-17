@@ -8,6 +8,7 @@ class GameEngine {
   final RoomStateMachine stateMachine;
   final Random _random;
   final DateTime Function() _now;
+  static const Duration secondEntryGrace = Duration(seconds: 5);
 
   int _gameSeq = 0;
   int _entrySeq = 0;
@@ -234,6 +235,16 @@ class GameEngine {
     _replaceCurrentRound(updatedRound);
 
     var submitted = Set<String>.of(phase.submittedPlayerIds)..add(playerId);
+    var now = _now();
+    DateTime? earliestVoteAt = phase.earliestVoteAt;
+    if (updatedRound.entries.length >= 2 && earliestVoteAt == null) {
+      earliestVoteAt = now.add(secondEntryGrace);
+    }
+
+    var nextEndsAt = phase.endsAt;
+    if (earliestVoteAt != null && nextEndsAt.isBefore(earliestVoteAt)) {
+      nextEndsAt = earliestVoteAt;
+    }
 
     stateMachine.snapshot = snapshot.copyWith(
       players: updatedPlayers,
@@ -242,7 +253,8 @@ class GameEngine {
         roundId: phase.roundId,
         categoryLabel: phase.categoryLabel,
         superlatives: phase.superlatives,
-        endsAt: phase.endsAt,
+        endsAt: nextEndsAt,
+        earliestVoteAt: earliestVoteAt,
         submittedPlayerIds: submitted,
       ),
       updatedAt: _now(),
@@ -250,7 +262,12 @@ class GameEngine {
 
     var activePlayerIds =
         snapshot.activePlayerSessions.map((p) => p.playerId).toSet();
-    if (activePlayerIds.isNotEmpty && submitted.containsAll(activePlayerIds)) {
+    var graceSatisfied =
+        earliestVoteAt == null || !now.isBefore(earliestVoteAt);
+    if (updatedRound.entries.length >= 2 &&
+        graceSatisfied &&
+        activePlayerIds.isNotEmpty &&
+        submitted.containsAll(activePlayerIds)) {
       closeEntryInput();
     }
 
@@ -330,13 +347,6 @@ class GameEngine {
       ),
       updatedAt: _now(),
     );
-
-    var activePlayerIds =
-        snapshot.activePlayerSessions.map((p) => p.playerId).toSet();
-    if (activePlayerIds.isNotEmpty &&
-        votesMap.keys.toSet().containsAll(activePlayerIds)) {
-      closeVotePhase();
-    }
 
     return true;
   }

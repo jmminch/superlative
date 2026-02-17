@@ -56,6 +56,7 @@ void _playRoundToSummary(GameEngine engine) {
     expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
     expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
 
+    expect(engine.closeVotePhase(), isTrue);
     expect(engine.snapshot.phase, isA<VoteRevealPhase>());
     expect(engine.closeReveal(), isTrue);
   }
@@ -163,6 +164,7 @@ void main() {
             isTrue);
         expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId),
             isTrue);
+        expect(engine.closeVotePhase(), isTrue);
         expect(engine.closeReveal(), isTrue);
       }
 
@@ -245,6 +247,42 @@ void main() {
     });
   });
 
+  group('Entry input gating', () {
+    test('does not auto-close entry input before second-entry grace', () {
+      var now = _now;
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(),
+        now: () => now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(11),
+        now: () => now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+
+      expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
+      expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+
+      // Both active players submitted, but less than 5s since second entry.
+      expect(engine.snapshot.phase, isA<EntryInputPhase>());
+
+      now = now.add(const Duration(seconds: 5));
+      expect(engine.closeEntryInput(), isTrue);
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
+    });
+  });
+
   group('Deterministic seeded behavior', () {
     test('superlative selection is deterministic with the same seed', () {
       var pool = const [
@@ -309,6 +347,8 @@ void main() {
           engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
       expect(
           engine.submitVote(playerId: 'p2', entryId: entryP2.entryId), isTrue);
+
+      expect(engine.closeVotePhase(), isTrue);
 
       // 1 vote each: 500 points each.
       var scoreboard = engine.snapshot.currentGame!.scoreboard;

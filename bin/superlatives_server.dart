@@ -246,6 +246,31 @@ class RoomRuntime {
         updatedAt: now,
       ),
       now: DateTime.now,
+      onAutoTransition: (_) => broadcastState(),
+      onAutoTimeout: (phase) {
+        if (phase is EntryInputPhase) {
+          var ok = _handleEntryInputTimeout();
+          if (ok) {
+            broadcastState();
+          }
+          return ok;
+        }
+        if (phase is VoteInputPhase) {
+          var ok = _closeVoteInputPhase();
+          if (ok) {
+            broadcastState();
+          }
+          return ok;
+        }
+        if (phase is RoundSummaryPhase) {
+          var ok = _advanceFromRoundSummary();
+          if (ok) {
+            broadcastState();
+          }
+          return ok;
+        }
+        return false;
+      },
     );
 
     engine = GameEngine(
@@ -414,6 +439,9 @@ class RoomRuntime {
       handled = engine.submitEntry(playerId: playerId, text: event.text);
     } else if (event is SubmitVoteEvent) {
       handled = engine.submitVote(playerId: playerId, entryId: event.entryId);
+      if (handled && _allActivePlayersVoted()) {
+        handled = _closeVoteInputPhase();
+      }
     } else if (event is AdvanceEvent) {
       handled = _handleAdvance(playerId);
     } else if (event is EndGameEvent) {
@@ -449,33 +477,117 @@ class RoomRuntime {
     var phase = stateMachine.snapshot.phase;
 
     if (phase is RoundSummaryPhase) {
-      if (stateMachine.snapshot.currentGame == null) {
-        return false;
-      }
-
-      var roundCount = stateMachine.snapshot.currentGame!.rounds.length;
-      if (roundCount >= stateMachine.snapshot.config.roundCount) {
-        return engine.completeRound();
-      }
-
-      var usedCategoryIds = stateMachine.snapshot.currentGame!.rounds
-          .map((r) => r.categoryId)
-          .toSet();
-
-      var nextRound = _contentProvider.selectRoundContent(
-        config: stateMachine.snapshot.config,
-        random: _random,
-        excludeCategoryIds: usedCategoryIds,
-      );
-
-      return engine.completeRound(
-        nextCategoryId: nextRound.categoryId,
-        nextCategoryLabel: nextRound.categoryLabel,
-        nextRoundSuperlatives: nextRound.superlatives,
-      );
+      return _advanceFromRoundSummary();
     }
 
     return stateMachine.onHostControl(playerId, HostControlEvent.advance);
+  }
+
+  bool _advanceFromRoundSummary() {
+    if (stateMachine.snapshot.currentGame == null) {
+      return false;
+    }
+
+    var roundCount = stateMachine.snapshot.currentGame!.rounds.length;
+    if (roundCount >= stateMachine.snapshot.config.roundCount) {
+      return engine.completeRound();
+    }
+
+    var usedCategoryIds = stateMachine.snapshot.currentGame!.rounds
+        .map((r) => r.categoryId)
+        .toSet();
+
+    var nextRound = _contentProvider.selectRoundContent(
+      config: stateMachine.snapshot.config,
+      random: _random,
+      excludeCategoryIds: usedCategoryIds,
+    );
+
+    return engine.completeRound(
+      nextCategoryId: nextRound.categoryId,
+      nextCategoryLabel: nextRound.categoryLabel,
+      nextRoundSuperlatives: nextRound.superlatives,
+    );
+  }
+
+  bool _allActivePlayersVoted() {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! VoteInputPhase) {
+      return false;
+    }
+
+    var activePlayerIds = stateMachine.snapshot.activePlayerSessions
+        .map((p) => p.playerId)
+        .toSet();
+    if (activePlayerIds.isEmpty) {
+      return false;
+    }
+
+    return phase.votesByPlayer.keys.toSet().containsAll(activePlayerIds);
+  }
+
+  bool _closeVoteInputPhase() {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! VoteInputPhase) {
+      return false;
+    }
+
+    return engine.closeVotePhase();
+  }
+
+  bool _handleEntryInputTimeout() {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! EntryInputPhase) {
+      return false;
+    }
+
+    var game = stateMachine.snapshot.currentGame;
+    var round = (game == null || game.rounds.isEmpty) ? null : game.rounds.last;
+    var entryCount = round?.entries.length ?? 0;
+
+    if (entryCount < 2) {
+      return _extendEntryInputTimeout(const Duration(seconds: 5));
+    }
+
+    if (phase.earliestVoteAt != null &&
+        DateTime.now().isBefore(phase.earliestVoteAt!)) {
+      return _setEntryInputTimeout(phase.earliestVoteAt!);
+    }
+
+    return engine.closeEntryInput();
+  }
+
+  bool _extendEntryInputTimeout(Duration by) {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! EntryInputPhase) {
+      return false;
+    }
+
+    return _setEntryInputTimeout(DateTime.now().add(by));
+  }
+
+  bool _setEntryInputTimeout(DateTime endsAt) {
+    var phase = stateMachine.snapshot.phase;
+    if (phase is! EntryInputPhase) {
+      return false;
+    }
+
+    var nextEndsAt = endsAt;
+    if (nextEndsAt.isBefore(DateTime.now())) {
+      nextEndsAt = DateTime.now();
+    }
+
+    return stateMachine.replaceCurrentPhase(
+      EntryInputPhase(
+        roundIndex: phase.roundIndex,
+        roundId: phase.roundId,
+        categoryLabel: phase.categoryLabel,
+        superlatives: phase.superlatives,
+        endsAt: nextEndsAt,
+        earliestVoteAt: phase.earliestVoteAt,
+        submittedPlayerIds: phase.submittedPlayerIds,
+      ),
+    );
   }
 
   void broadcastState() {

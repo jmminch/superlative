@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Superlatives</title>
+  <title>Superlatives Display</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="client.css">
@@ -11,75 +11,60 @@
   <div id="header">
     <div id="header-top">
       <span id="header-room">Room: -</span>
-      <span id="header-name">-</span>
+      <span id="header-role">DISPLAY</span>
     </div>
-    <div id="header-title">SUPERLATIVES</div>
+    <div id="header-title">SUPERLATIVES DISPLAY</div>
     <div id="header-phase">Phase: -</div>
     <div id="header-timer"></div>
   </div>
 
-  <main id="app">
+  <main id="app" class="display-mode">
     <section id="screen-login" class="screen active">
-      <h2>Join Room</h2>
-      <label for="login-name">Name</label>
-      <input type="text" id="login-name" maxlength="24" autocomplete="name">
+      <h2>Connect Display</h2>
       <label for="login-room">Room Code</label>
       <input type="text" id="login-room" maxlength="16" autocomplete="off">
-      <button id="login-button" class="primary">Log In</button>
-      <div class="small-row">
-        <a href="about.html">About</a>
-      </div>
+      <button id="login-button" class="primary">Connect Display</button>
+      <p class="note">This screen is read-only and does not submit entries or votes.</p>
     </section>
 
     <section id="screen-lobby" class="screen">
       <h2>Lobby</h2>
-      <p id="lobby-status"></p>
       <div id="lobby-player-list" class="card-list"></div>
-      <button id="lobby-start" class="primary">Start Game</button>
+      <p id="lobby-note" class="note"></p>
     </section>
 
     <section id="screen-round-intro" class="screen">
       <h2 id="round-title">Round</h2>
       <p id="round-category"></p>
       <div id="round-superlatives" class="card-list"></div>
-      <button id="round-advance" class="primary">Continue</button>
     </section>
 
     <section id="screen-entry" class="screen">
-      <h2>Submit Your Entry</h2>
+      <h2>Entry Phase</h2>
       <p id="entry-category"></p>
-      <input type="text" id="entry-text" maxlength="40" autocomplete="off" placeholder="Enter your answer">
-      <button id="entry-submit" class="primary">Submit Entry</button>
-      <p id="entry-note" class="note"></p>
-      <h3>Entries So Far</h3>
       <div id="entry-list" class="card-list"></div>
     </section>
 
     <section id="screen-vote" class="screen">
       <h2 id="vote-title">Vote</h2>
       <p id="vote-prompt"></p>
-      <div id="vote-list" class="button-list"></div>
-      <p id="vote-note" class="note"></p>
+      <div id="vote-list" class="card-list"></div>
     </section>
 
     <section id="screen-reveal" class="screen">
-      <h2>Vote Results</h2>
+      <h2>Vote Reveal</h2>
       <p id="reveal-prompt"></p>
       <div id="reveal-list" class="card-list"></div>
-      <button id="reveal-advance" class="primary">Continue</button>
     </section>
 
     <section id="screen-round-summary" class="screen">
       <h2>Round Summary</h2>
       <div id="round-summary-board" class="card-list"></div>
-      <button id="round-summary-advance" class="primary">Next Round</button>
     </section>
 
     <section id="screen-game-summary" class="screen">
       <h2>Final Scores</h2>
       <div id="game-summary-board" class="card-list"></div>
-      <button id="game-summary-advance" class="primary">Back to Lobby</button>
-      <button id="game-summary-end" class="secondary">End Game</button>
     </section>
 
     <section id="screen-error" class="screen">
@@ -89,9 +74,9 @@
   </main>
 
   <div id="footer-actions">
-    <button id="logout" class="secondary">Leave Room</button>
+    <button id="disconnect" class="secondary">Disconnect</button>
   </div>
 
-  <script type="text/javascript" src="player.js"></script>
+  <script type="text/javascript" src="display.js"></script>
 </body>
 </html>

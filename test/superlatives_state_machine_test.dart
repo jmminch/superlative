@@ -209,6 +209,7 @@ void main() {
 
     test('phase timer firing triggers matching timeout handler', () {
       var scheduler = _FakeScheduler();
+      var autoTransitions = 0;
       var machine = RoomStateMachine(
         snapshot: _buildLobbySnapshot().copyWith(
           phase: EntryInputPhase(
@@ -222,10 +223,53 @@ void main() {
         ),
         timerScheduler: scheduler,
         now: () => _baseNow,
+        onAutoTransition: (_) {
+          autoTransitions++;
+        },
       );
 
       expect(machine.snapshot.phase, isA<EntryInputPhase>());
       expect(scheduler.fireMostRecentActive(), isTrue);
+      expect(machine.snapshot.phase, isA<VoteInputPhase>());
+      expect(autoTransitions, 1);
+    });
+
+    test('vote input timeout can be intercepted by custom timeout handler', () {
+      var scheduler = _FakeScheduler();
+      var autoTransitions = 0;
+      var customTimeoutCalls = 0;
+
+      var machine = RoomStateMachine(
+        snapshot: _buildLobbySnapshot().copyWith(
+          phase: VoteInputPhase(
+            roundIndex: 0,
+            roundId: 'r1',
+            voteIndex: 0,
+            superlativeId: 's1',
+            promptText: 'Cutest',
+            roundSuperlatives: _superlatives(),
+            endsAt: _baseNow.add(const Duration(seconds: 1)),
+            votesByPlayer: const {},
+          ),
+        ),
+        timerScheduler: scheduler,
+        now: () => _baseNow,
+        onAutoTransition: (_) {
+          autoTransitions++;
+        },
+        onAutoTimeout: (phase) {
+          if (phase is VoteInputPhase) {
+            customTimeoutCalls++;
+            return true;
+          }
+          return false;
+        },
+      );
+
+      expect(machine.snapshot.phase, isA<VoteInputPhase>());
+      expect(scheduler.fireMostRecentActive(), isTrue);
+      expect(customTimeoutCalls, 1);
+      expect(autoTransitions, 0);
       expect(machine.snapshot.phase, isA<VoteInputPhase>());
     });
   });
