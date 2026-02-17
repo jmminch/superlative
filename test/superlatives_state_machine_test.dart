@@ -47,7 +47,11 @@ SuperlativesRoomSnapshot _buildLobbySnapshot({
   return SuperlativesRoomSnapshot(
     roomCode: 'ABCD',
     hostPlayerId: hostId,
-    config: const RoomConfig(minPlayersToStart: 2),
+    config: const RoomConfig(
+      minPlayersToStart: 2,
+      setCount: 2,
+      promptsPerSet: 1,
+    ),
     players: players ??
         const {
           'p1': PlayerSession(
@@ -275,7 +279,7 @@ void main() {
   });
 
   group('host controls and failover', () {
-    test('non-host cannot trigger host control event', () {
+    test('any active lobby player can start and becomes host', () {
       var scheduler = _FakeScheduler();
       var machine = RoomStateMachine(
         snapshot: _buildLobbySnapshot(),
@@ -292,8 +296,9 @@ void main() {
         roundIntroEndsAt: _baseNow.add(const Duration(seconds: 5)),
       );
 
-      expect(ok, isFalse);
-      expect(machine.snapshot.phase, isA<LobbyPhase>());
+      expect(ok, isTrue);
+      expect(machine.snapshot.phase, isA<RoundIntroPhase>());
+      expect(machine.snapshot.hostPlayerId, 'p2');
     });
 
     test('host failover elects active player after grace timeout', () {

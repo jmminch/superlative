@@ -70,6 +70,14 @@ class RoomStateMachine {
   }
 
   bool canPlayerControl(String playerId, HostControlEvent event) {
+    if (event == HostControlEvent.startGame && snapshot.phase is LobbyPhase) {
+      var starter = snapshot.players[playerId];
+      if (starter == null || starter.role != SessionRole.player) {
+        return false;
+      }
+      return starter.state == PlayerSessionState.active;
+    }
+
     var hostId = snapshot.hostPlayerId;
     if (hostId == null) {
       return false;
@@ -115,6 +123,11 @@ class RoomStateMachine {
             roundIntroEndsAt == null) {
           return false;
         }
+
+        snapshot = snapshot.copyWith(
+          hostPlayerId: playerId,
+          updatedAt: _now(),
+        );
 
         if (!transitionTo(const GameStartingPhase())) {
           return false;
@@ -176,17 +189,25 @@ class RoomStateMachine {
       return false;
     }
 
-    var firstSuperlative = phase.superlatives.first;
+    var firstSetSuperlatives =
+        _superlativesForSet(phase.superlatives, setIndex: 0);
+    if (firstSetSuperlatives.isEmpty) {
+      return false;
+    }
+    var firstSuperlative = firstSetSuperlatives.first;
     return transitionTo(
       VoteInputPhase(
         roundIndex: phase.roundIndex,
         roundId: phase.roundId,
         voteIndex: 0,
+        setIndex: 0,
         superlativeId: firstSuperlative.superlativeId,
         promptText: firstSuperlative.promptText,
         roundSuperlatives: phase.superlatives,
-        endsAt: _now().add(Duration(seconds: snapshot.config.voteInputSeconds)),
+        setSuperlatives: firstSetSuperlatives,
+        endsAt: _now().add(Duration(seconds: snapshot.config.setInputSeconds)),
         votesByPlayer: const {},
+        promptIndexByPlayer: const {},
       ),
     );
   }
@@ -202,9 +223,11 @@ class RoomStateMachine {
         roundIndex: phase.roundIndex,
         roundId: phase.roundId,
         voteIndex: phase.voteIndex,
+        setIndex: phase.setIndex,
         superlativeId: phase.superlativeId,
-        promptText: phase.promptText,
+        promptText: 'Set ${phase.setIndex + 1} results',
         roundSuperlatives: phase.roundSuperlatives,
+        setSuperlatives: phase.setSuperlatives,
         results: VoteResults(
           voteCountByEntry: const {},
           pointsByEntry: const {},
@@ -221,20 +244,27 @@ class RoomStateMachine {
       return false;
     }
 
-    var nextVoteIndex = phase.voteIndex + 1;
-    if (nextVoteIndex < phase.roundSuperlatives.length) {
-      var nextSuperlative = phase.roundSuperlatives[nextVoteIndex];
+    var nextSetIndex = phase.setIndex + 1;
+    var nextSetSuperlatives = _superlativesForSet(
+      phase.roundSuperlatives,
+      setIndex: nextSetIndex,
+    );
+    if (nextSetSuperlatives.isNotEmpty) {
+      var nextSuperlative = nextSetSuperlatives.first;
       return transitionTo(
         VoteInputPhase(
           roundIndex: phase.roundIndex,
           roundId: phase.roundId,
-          voteIndex: nextVoteIndex,
+          voteIndex: nextSetIndex,
+          setIndex: nextSetIndex,
           superlativeId: nextSuperlative.superlativeId,
           promptText: nextSuperlative.promptText,
           roundSuperlatives: phase.roundSuperlatives,
+          setSuperlatives: nextSetSuperlatives,
           endsAt:
-              _now().add(Duration(seconds: snapshot.config.voteInputSeconds)),
+              _now().add(Duration(seconds: snapshot.config.setInputSeconds)),
           votesByPlayer: const {},
+          promptIndexByPlayer: const {},
         ),
       );
     }
@@ -439,5 +469,28 @@ class RoomStateMachine {
       updatedAt: _now(),
     );
     onAutoTransition?.call(snapshot);
+  }
+
+  List<SuperlativePrompt> _superlativesForSet(
+    List<SuperlativePrompt> all, {
+    required int setIndex,
+  }) {
+    if (setIndex < 0 ||
+        setIndex >= snapshot.config.setCount ||
+        all.isEmpty) {
+      return const [];
+    }
+
+    var promptsPerSet = snapshot.config.promptsPerSet;
+    var start = setIndex * promptsPerSet;
+    if (start >= all.length) {
+      return const [];
+    }
+
+    var end = start + promptsPerSet;
+    if (end > all.length) {
+      end = all.length;
+    }
+    return List<SuperlativePrompt>.unmodifiable(all.sublist(start, end));
   }
 }

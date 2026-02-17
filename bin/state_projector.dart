@@ -93,7 +93,8 @@ class StateProjector {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'categoryLabel': phase.categoryLabel,
-        'entries': _entriesView(snapshot, round),
+        // Player identities stay hidden until round summary.
+        'entries': const [],
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
       };
 
@@ -105,18 +106,27 @@ class StateProjector {
     }
 
     if (phase is VoteInputPhase) {
+      var setPromptCount = phase.setSuperlatives.length;
       payload['vote'] = {
         'roundId': phase.roundId,
         'voteIndex': phase.voteIndex,
         'superlativeId': phase.superlativeId,
         'promptText': phase.promptText,
-        'entries': _entriesView(snapshot, round),
+        'entries': _entriesView(snapshot, round, includeOwner: false),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+      };
+      payload['round'] = {
+        'roundId': phase.roundId,
+        'currentSetIndex': phase.setIndex,
+        'setPromptCount': setPromptCount,
+        'setTimeoutSeconds': _remainingSeconds(phase.endsAt),
       };
 
       if (role == 'player' && viewer != null) {
-        payload['youVoted'] = phase.votesByPlayer.containsKey(viewer.playerId);
+        var promptIndex = phase.promptIndexByPlayer[viewer.playerId] ?? 0;
+        payload['youVoted'] = promptIndex >= setPromptCount;
         payload['yourVoteEntryId'] = phase.votesByPlayer[viewer.playerId];
+        payload['round']['currentPromptIndexForYou'] = promptIndex;
       }
       return;
     }
@@ -125,9 +135,11 @@ class StateProjector {
       payload['reveal'] = {
         'roundId': phase.roundId,
         'voteIndex': phase.voteIndex,
+        'setIndex': phase.setIndex,
         'superlativeId': phase.superlativeId,
         'promptText': phase.promptText,
-        'entries': _entriesView(snapshot, round),
+        'entries': _entriesView(snapshot, round, includeOwner: false),
+        'roundPointsByEntry': round?.roundPointsByEntry ?? const <String, int>{},
         'results': {
           'voteCountByEntry': phase.results.voteCountByEntry,
           'pointsByEntry': phase.results.pointsByEntry,
@@ -142,6 +154,7 @@ class StateProjector {
       payload['roundSummary'] = {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
+        'playerRoundResults': _roundSummaryRows(snapshot, round),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
       };
       return;
@@ -203,6 +216,7 @@ class StateProjector {
   List<Map<String, dynamic>> _entriesView(
     SuperlativesRoomSnapshot snapshot,
     RoundInstance? round,
+    {required bool includeOwner}
   ) {
     if (round == null) {
       return const [];
@@ -212,15 +226,20 @@ class StateProjector {
       ..sort((a, b) => a.entryId.compareTo(b.entryId));
 
     return entries
-        .map((e) => {
-              'entryId': e.entryId,
-              'ownerPlayerId': e.ownerPlayerId,
-              'ownerDisplayName':
-                  snapshot.players[e.ownerPlayerId]?.displayName ??
-                      e.ownerPlayerId,
-              'text': e.textOriginal,
-              'status': e.status.name,
-            })
+        .map((e) {
+          var row = <String, dynamic>{
+            'entryId': e.entryId,
+            'text': e.textOriginal,
+            'status': e.status.name,
+          };
+          if (includeOwner) {
+            row['ownerPlayerId'] = e.ownerPlayerId;
+            row['ownerDisplayName'] =
+                snapshot.players[e.ownerPlayerId]?.displayName ??
+                    e.ownerPlayerId;
+          }
+          return row;
+        })
         .toList(growable: false);
   }
 
@@ -250,5 +269,44 @@ class StateProjector {
     }
 
     return (millis + 999) ~/ 1000;
+  }
+
+  List<Map<String, dynamic>> _roundSummaryRows(
+    SuperlativesRoomSnapshot snapshot,
+    RoundInstance? round,
+  ) {
+    if (round == null) {
+      return const [];
+    }
+
+    var entryByOwner = <String, Entry>{};
+    for (var entry in round.entries) {
+      entryByOwner[entry.ownerPlayerId] = entry;
+    }
+
+    var rows = snapshot.players.values
+        .where((p) => p.role == SessionRole.player)
+        .map((p) {
+      var score = snapshot.currentGame?.scoreboard[p.playerId] ?? 0;
+      var entry = entryByOwner[p.playerId];
+      var pointsThisRound = round.roundPointsByPlayerPending[p.playerId] ?? 0;
+      return <String, dynamic>{
+        'playerId': p.playerId,
+        'displayName': p.displayName,
+        'totalScore': score,
+        'entryText': entry?.textOriginal,
+        'pointsThisRound': pointsThisRound,
+      };
+    }).toList();
+
+    rows.sort((a, b) {
+      var scoreCmp = (b['totalScore'] as int).compareTo(a['totalScore'] as int);
+      if (scoreCmp != 0) {
+        return scoreCmp;
+      }
+      return (a['playerId'] as String).compareTo(b['playerId'] as String);
+    });
+
+    return rows;
   }
 }

@@ -33,6 +33,21 @@ RoundInstance _round({VoteResults? results}) {
         results: results,
       ),
     ],
+    voteSets: [
+      VoteSet(
+        setIndex: 0,
+        prompts: [
+          VotePromptState(
+            promptIndex: 0,
+            superlativeId: 's1',
+            promptText: 'Cutest',
+            votesByPlayer: {'p1': 'e1'},
+          ),
+        ],
+      ),
+    ],
+    roundPointsByEntry: const {'e1': 500, 'e2': 250},
+    roundPointsByPlayerPending: const {'p1': 500, 'p2': 250},
     status: RoundStatus.active,
   );
 }
@@ -149,6 +164,10 @@ void main() {
         ],
         endsAt: _baseNow.add(const Duration(seconds: 20)),
         votesByPlayer: const {'p1': 'e2'},
+        setSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        promptIndexByPlayer: const {'p1': 1},
       );
 
       var snapshot = _snapshotForPhase(phase);
@@ -160,8 +179,14 @@ void main() {
 
       expect(playerPayload['youVoted'], isTrue);
       expect(playerPayload['yourVoteEntryId'], 'e2');
+      expect(playerPayload['round']['currentSetIndex'], 0);
+      expect(playerPayload['round']['setPromptCount'], 1);
+      expect(playerPayload['round']['currentPromptIndexForYou'], 1);
       expect(displayPayload.containsKey('youVoted'), isFalse);
       expect(displayPayload.containsKey('yourVoteEntryId'), isFalse);
+      var voteEntries = displayPayload['vote']['entries'] as List<dynamic>;
+      expect(voteEntries.first.containsKey('ownerPlayerId'), isFalse);
+      expect(voteEntries.first.containsKey('ownerDisplayName'), isFalse);
     });
 
     test('display projection includes reveal results and leaderboard', () {
@@ -179,6 +204,9 @@ void main() {
           pointsByEntry: const {'e1': 500, 'e2': 500},
           pointsByPlayer: const {'p1': 500, 'p2': 500},
         ),
+        setSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
         endsAt: _baseNow.add(const Duration(seconds: 10)),
       );
 
@@ -189,10 +217,31 @@ void main() {
       expect(displayPayload['reveal'], isNotNull);
       expect(displayPayload['reveal']['results']['pointsByPlayer'],
           {'p1': 500, 'p2': 500});
+      expect(displayPayload['reveal']['roundPointsByEntry'],
+          {'e1': 500, 'e2': 250});
+      var revealEntries = displayPayload['reveal']['entries'] as List<dynamic>;
+      expect(revealEntries.first.containsKey('ownerPlayerId'), isFalse);
+      expect(revealEntries.first.containsKey('ownerDisplayName'), isFalse);
 
       var leaderboard = displayPayload['leaderboard'] as List<dynamic>;
       expect(leaderboard.first['playerId'], 'p1');
       expect(leaderboard.first['score'], 1200);
+    });
+
+    test('round summary includes per-player round results with entry text', () {
+      var phase = RoundSummaryPhase(
+        roundIndex: 0,
+        roundId: 'round_1',
+        endsAt: _baseNow.add(const Duration(seconds: 8)),
+      );
+      var snapshot = _snapshotForPhase(phase);
+
+      var payload = projector.projectForDisplay(snapshot: snapshot);
+      var rows = payload['roundSummary']['playerRoundResults'] as List<dynamic>;
+      expect(rows.length, 2);
+      expect(rows.first['playerId'], 'p1');
+      expect(rows.first['entryText'], 'RACCOON');
+      expect(rows.first['pointsThisRound'], 500);
     });
 
     test('game summary payload includes game metadata and no private flags',

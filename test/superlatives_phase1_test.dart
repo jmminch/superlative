@@ -9,6 +9,9 @@ void main() {
 
       expect(config.roundCount, 3);
       expect(config.votePhasesPerRound, 3);
+      expect(config.setCount, 3);
+      expect(config.promptsPerSet, 3);
+      expect(config.setInputSeconds, 45);
       expect(config.entryInputSeconds, 30);
       expect(config.voteInputSeconds, 20);
       expect(config.revealSeconds, 12);
@@ -176,6 +179,38 @@ void main() {
       );
 
       expect(snapshot.activePlayerCount, 1);
+    });
+
+    test('round instance supports set model and pending round points', () {
+      var round = RoundInstance(
+        roundId: 'r1',
+        categoryId: 'animals',
+        categoryLabel: 'Animals',
+        entries: const [],
+        votePhases: const [],
+        voteSets: [
+          VoteSet(
+            setIndex: 0,
+            prompts: [
+              VotePromptState(
+                promptIndex: 0,
+                superlativeId: 'cutest',
+                promptText: 'Cutest',
+                votesByPlayer: const {'p1': 'e1'},
+              ),
+            ],
+            status: VoteSetStatus.active,
+          ),
+        ],
+        roundPointsByEntry: const {'e1': 1000},
+        roundPointsByPlayerPending: const {'p1': 1000},
+      );
+
+      expect(round.voteSets, hasLength(1));
+      expect(round.voteSets.first.prompts, hasLength(1));
+      expect(round.voteSets.first.status, VoteSetStatus.active);
+      expect(round.roundPointsByEntry['e1'], 1000);
+      expect(round.roundPointsByPlayerPending['p1'], 1000);
     });
   });
 }

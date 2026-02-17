@@ -21,6 +21,7 @@ class SuperlativesServer {
     String contentPath = './data/superlatives.yaml',
   }) async {
     var provider = await YamlContentProvider.fromFile(contentPath);
+    provider.validateForConfig(const RoomConfig());
     return SuperlativesServer._(provider);
   }
 
@@ -554,7 +555,14 @@ class RoomRuntime {
       return false;
     }
 
-    return phase.votesByPlayer.keys.toSet().containsAll(activePlayerIds);
+    var promptCount = phase.setSuperlatives.length;
+    for (var playerId in activePlayerIds) {
+      var promptIndex = phase.promptIndexByPlayer[playerId] ?? 0;
+      if (promptIndex < promptCount) {
+        return false;
+      }
+    }
+    return true;
   }
 
   bool _closeVoteInputPhase() {
@@ -609,8 +617,10 @@ class RoomRuntime {
 
   void _applyMissedActionPenaltiesForVotePhase(VoteInputPhase phase) {
     var activePlayers = stateMachine.snapshot.activePlayerSessions.toList();
+    var promptCount = phase.setSuperlatives.length;
     for (var player in activePlayers) {
-      if (!phase.votesByPlayer.containsKey(player.playerId)) {
+      var promptIndex = phase.promptIndexByPlayer[player.playerId] ?? 0;
+      if (promptIndex < promptCount) {
         _registerMissedAction(player.playerId);
       }
     }

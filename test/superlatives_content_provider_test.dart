@@ -63,6 +63,22 @@ categories:
         throwsA(isA<ContentValidationException>()),
       );
     });
+
+    test('rejects duplicate superlatives within a category', () {
+      var yaml = '''
+categories:
+  - id: animals
+    label: Animals
+    superlatives:
+      - Cutest
+      - cutest
+''';
+
+      expect(
+        () => YamlContentProvider.fromYamlString(yaml),
+        throwsA(isA<ContentValidationException>()),
+      );
+    });
   });
 
   group('Round selection', () {
@@ -84,9 +100,9 @@ categories:
       - Spiciest
 ''');
 
-    test('selects votePhasesPerRound superlatives without replacement', () {
+    test('selects requiredPromptCount superlatives without replacement', () {
       var content = provider.selectRoundContent(
-        config: const RoomConfig(votePhasesPerRound: 3),
+        config: const RoomConfig(setCount: 1, promptsPerSet: 3),
         random: Random(42),
       );
 
@@ -97,7 +113,7 @@ categories:
 
     test('prefers categories not in excludeCategoryIds', () {
       var content = provider.selectRoundContent(
-        config: const RoomConfig(votePhasesPerRound: 3),
+        config: const RoomConfig(setCount: 1, promptsPerSet: 3),
         random: Random(1),
         excludeCategoryIds: const {'animals'},
       );
@@ -107,7 +123,7 @@ categories:
 
     test('falls back to excluded categories if needed', () {
       var content = provider.selectRoundContent(
-        config: const RoomConfig(votePhasesPerRound: 3),
+        config: const RoomConfig(setCount: 1, promptsPerSet: 3),
         random: Random(1),
         excludeCategoryIds: const {'animals', 'foods'},
       );
@@ -127,11 +143,63 @@ categories:
 
       expect(
         () => smallProvider.selectRoundContent(
-          config: const RoomConfig(votePhasesPerRound: 3),
+          config: const RoomConfig(setCount: 1, promptsPerSet: 3),
           random: Random(1),
         ),
         throwsA(isA<ContentValidationException>()),
       );
+    });
+
+    test('throws under default config when categories have fewer than 9 prompts',
+        () {
+      expect(
+        () => provider.selectRoundContent(
+          config: const RoomConfig(),
+          random: Random(7),
+        ),
+        throwsA(isA<ContentValidationException>()),
+      );
+    });
+
+    test('validateForConfig enforces setCount*promptsPerSet minimum', () {
+      expect(
+        () => provider.validateForConfig(const RoomConfig()),
+        throwsA(isA<ContentValidationException>()),
+      );
+
+      expect(
+        () => provider.validateForConfig(
+          const RoomConfig(setCount: 1, promptsPerSet: 3),
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('default config selects 9 unique prompts when available', () {
+      var largeProvider = YamlContentProvider.fromYamlString('''
+categories:
+  - id: animals
+    label: Animals
+    superlatives:
+      - Cutest
+      - Loudest
+      - Funniest
+      - Fastest
+      - Smartest
+      - Sleepiest
+      - Bravest
+      - Most social
+      - Most curious
+''');
+
+      var content = largeProvider.selectRoundContent(
+        config: const RoomConfig(),
+        random: Random(42),
+      );
+
+      expect(content.superlatives.length, 9);
+      var ids = content.superlatives.map((s) => s.superlativeId).toSet();
+      expect(ids.length, 9);
     });
   });
 }

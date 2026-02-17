@@ -90,6 +90,11 @@ categories:
       - Loudest
       - Fastest
       - Most chaotic
+      - Smartest
+      - Sleepiest
+      - Bravest
+      - Most social
+      - Most curious
   - id: foods
     label: Foods
     superlatives:
@@ -97,6 +102,11 @@ categories:
       - Messiest
       - Spiciest
       - Crunchiest
+      - Sweetest
+      - Healthiest
+      - Least healthy
+      - Best road trip snack
+      - Most comforting
 ''');
 }
 
@@ -133,11 +143,13 @@ void main() {
       var p3Id = l3.playerId!;
       var d1Id = ld.playerId!;
 
-      expect(room.handleEvent(playerId: hostId, event: const StartGameEvent()),
+      // Any active player can start; starter becomes host.
+      expect(room.handleEvent(playerId: p2Id, event: const StartGameEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
+      expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
 
-      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+      expect(room.handleEvent(playerId: p2Id, event: const AdvanceEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
 
@@ -162,24 +174,27 @@ void main() {
       var round = room.stateMachine.snapshot.currentGame!.rounds.last;
       var p3Entry = round.entries.firstWhere((e) => e.ownerPlayerId == p3Id);
 
-      expect(
-        room.handleEvent(
-            playerId: hostId, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue,
-      );
-      expect(
-        room.handleEvent(
-            playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue,
-      );
-      expect(
-        room.handleEvent(
-            playerId: p3Id, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue,
-      );
+      var promptsPerSet = room.stateMachine.snapshot.config.promptsPerSet;
+      for (var promptIndex = 0; promptIndex < promptsPerSet; promptIndex++) {
+        expect(
+          room.handleEvent(
+              playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue,
+        );
+        expect(
+          room.handleEvent(
+              playerId: hostId, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue,
+        );
+        expect(
+          room.handleEvent(
+              playerId: p3Id, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue,
+        );
+      }
 
       expect(room.stateMachine.snapshot.phase.phase, 'VoteReveal');
-      expect(room.stateMachine.snapshot.currentGame!.scoreboard[p3Id], 1000);
+      expect(room.stateMachine.snapshot.currentGame!.scoreboard[p3Id], 0);
 
       // Broadcast happened for all connected sessions, including display.
       expect(p1.testSink.sent.isNotEmpty, isTrue);
@@ -199,7 +214,7 @@ void main() {
       expect(playerPayload['role'], 'player');
 
       // Non-host advance should be rejected.
-      expect(room.handleEvent(playerId: p2Id, event: const AdvanceEvent()),
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
           isFalse);
 
       // Display session cannot start game.
@@ -227,6 +242,37 @@ void main() {
       expect(first.testSink.sent.isNotEmpty, isTrue);
       var disconnectMsg = _decodeEnvelope(first.testSink.sent.last);
       expect(disconnectMsg['event'], 'disconnect');
+    });
+
+    test('first accepted startGame event wins host assignment', () {
+      var room = RoomRuntime(
+        roomCode: 'TEST1',
+        contentProvider: _provider(),
+        random: Random(21),
+      );
+
+      var p1 = _TestWebSocketChannel();
+      var p2 = _TestWebSocketChannel();
+      var p3 = _TestWebSocketChannel();
+
+      var l1 = room.loginPlayer(displayName: 'alpha', socket: p1);
+      var l2 = room.loginPlayer(displayName: 'beta', socket: p2);
+      var l3 = room.loginPlayer(displayName: 'delta', socket: p3);
+
+      var p1Id = l1.playerId!;
+      var p2Id = l2.playerId!;
+      var p3Id = l3.playerId!;
+      expect(p3Id, isNotEmpty);
+
+      expect(room.handleEvent(playerId: p2Id, event: const StartGameEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
+      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
+
+      // Second start attempt loses race because game has already started.
+      expect(room.handleEvent(playerId: p1Id, event: const StartGameEvent()),
+          isFalse);
+      expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
     });
 
     test('does not increment missed actions when entry phase timeout extends', () {
@@ -326,15 +372,19 @@ void main() {
 
       var round = room.stateMachine.snapshot.currentGame!.rounds.last;
       var targetEntryId = round.entries.first.entryId;
-      expect(
-        room.handleEvent(
-            playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
-        isTrue,
-      );
-      expect(
-        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
-        isTrue,
-      );
+      var promptsPerSet = room.stateMachine.snapshot.config.promptsPerSet;
+      for (var promptIndex = 0; promptIndex < promptsPerSet; promptIndex++) {
+        expect(
+          room.handleEvent(
+              playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
+          isTrue,
+        );
+        expect(
+          room.handleEvent(
+              playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
+          isTrue,
+        );
+      }
       expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'VoteReveal');
       expect(room.stateMachine.snapshot.players[p3Id]!.missedActions, 2);
@@ -342,15 +392,18 @@ void main() {
       expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
-      expect(
-        room.handleEvent(
-            playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
-        isTrue,
-      );
-      expect(
-        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
-        isTrue,
-      );
+      for (var promptIndex = 0; promptIndex < promptsPerSet; promptIndex++) {
+        expect(
+          room.handleEvent(
+              playerId: hostId, event: SubmitVoteEvent(targetEntryId)),
+          isTrue,
+        );
+        expect(
+          room.handleEvent(
+              playerId: p2Id, event: SubmitVoteEvent(targetEntryId)),
+          isTrue,
+        );
+      }
       expect(room.processAutoTimeoutForCurrentPhase(), isTrue);
 
       // Third missed action disconnects p3.

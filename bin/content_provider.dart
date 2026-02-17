@@ -112,6 +112,7 @@ class YamlContentProvider implements ContentProvider {
       }
 
       var prompts = <SuperlativePrompt>[];
+      var normalizedPromptTexts = <String>{};
       for (var s = 0; s < rawSuperlatives.length; s++) {
         var promptTextRaw = rawSuperlatives[s];
         if (promptTextRaw is! String || promptTextRaw.trim().isEmpty) {
@@ -120,6 +121,11 @@ class YamlContentProvider implements ContentProvider {
         }
 
         var promptText = promptTextRaw.trim();
+        var normalizedPrompt = promptText.toLowerCase();
+        if (!normalizedPromptTexts.add(normalizedPrompt)) {
+          throw ContentValidationException(
+              'Category "$id" has duplicate superlative "$promptText".');
+        }
         prompts.add(
           SuperlativePrompt(
             superlativeId: '${id}_s${s + 1}',
@@ -136,6 +142,24 @@ class YamlContentProvider implements ContentProvider {
     return YamlContentProvider._(List.unmodifiable(categoryList));
   }
 
+  void validateForConfig(RoomConfig config) {
+    if (categories.isEmpty) {
+      throw const ContentValidationException('No categories available.');
+    }
+
+    var requiredCount = requiredPromptCount(config);
+    var invalid = categories
+        .where((c) => c.superlatives.length < requiredCount)
+        .map((c) => c.id)
+        .toList(growable: false);
+    if (invalid.isNotEmpty) {
+      throw ContentValidationException(
+        'Categories with fewer than $requiredCount superlatives: '
+        '${invalid.join(', ')}.',
+      );
+    }
+  }
+
   @override
   RoundContent selectRoundContent({
     required RoomConfig config,
@@ -146,13 +170,14 @@ class YamlContentProvider implements ContentProvider {
       throw const ContentValidationException('No categories available.');
     }
 
+    var requiredCount = requiredPromptCount(config);
     var eligible = categories
-        .where((c) => c.superlatives.length >= config.votePhasesPerRound)
+        .where((c) => c.superlatives.length >= requiredCount)
         .toList(growable: false);
 
     if (eligible.isEmpty) {
       throw ContentValidationException(
-        'No category has at least ${config.votePhasesPerRound} superlatives.',
+        'No category has at least $requiredCount superlatives.',
       );
     }
 
@@ -165,7 +190,7 @@ class YamlContentProvider implements ContentProvider {
 
     var prompts = List<SuperlativePrompt>.of(category.superlatives);
     prompts.shuffle(random);
-    prompts = prompts.take(config.votePhasesPerRound).toList(growable: false);
+    prompts = prompts.take(requiredCount).toList(growable: false);
 
     return RoundContent(
       categoryId: category.id,
@@ -192,5 +217,9 @@ class YamlContentProvider implements ContentProvider {
     }
 
     return value;
+  }
+
+  static int requiredPromptCount(RoomConfig config) {
+    return config.setCount * config.promptsPerSet;
   }
 }

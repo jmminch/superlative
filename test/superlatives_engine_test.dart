@@ -40,6 +40,12 @@ List<SuperlativePrompt> _roundPrompts() {
     SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest'),
     SuperlativePrompt(superlativeId: 's2', promptText: 'Bravest'),
     SuperlativePrompt(superlativeId: 's3', promptText: 'Most chaotic'),
+    SuperlativePrompt(superlativeId: 's4', promptText: 'Smartest'),
+    SuperlativePrompt(superlativeId: 's5', promptText: 'Loudest'),
+    SuperlativePrompt(superlativeId: 's6', promptText: 'Fastest'),
+    SuperlativePrompt(superlativeId: 's7', promptText: 'Sleepiest'),
+    SuperlativePrompt(superlativeId: 's8', promptText: 'Most social'),
+    SuperlativePrompt(superlativeId: 's9', promptText: 'Most curious'),
   ];
 }
 
@@ -49,17 +55,28 @@ void _playRoundToSummary(GameEngine engine) {
   expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
   expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
-  for (var i = 0; i < 3; i++) {
-    expect(engine.snapshot.phase, isA<VoteInputPhase>());
-    var round = engine.snapshot.currentGame!.rounds.last;
-    var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
+  var config = engine.snapshot.config;
+  for (var setIndex = 0; setIndex < config.setCount; setIndex++) {
+    for (var promptIndex = 0;
+        promptIndex < config.promptsPerSet;
+        promptIndex++) {
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
+      var round = engine.snapshot.currentGame!.rounds.last;
+      var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
 
-    expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
-    expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
+      expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId),
+          isTrue);
+      expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId),
+          isTrue);
+    }
 
     expect(engine.closeVotePhase(), isTrue);
     expect(engine.snapshot.phase, isA<VoteRevealPhase>());
     expect(engine.closeReveal(), isTrue);
+
+    if (setIndex < config.setCount - 1) {
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
+    }
   }
 
   expect(engine.snapshot.phase, isA<RoundSummaryPhase>());
@@ -159,13 +176,19 @@ void main() {
       expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
       // Finish round quickly.
-      for (var i = 0; i < 3; i++) {
-        var round = engine.snapshot.currentGame!.rounds.last;
-        var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
-        expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId),
-            isTrue);
-        expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId),
-            isTrue);
+      var config = engine.snapshot.config;
+      for (var setIndex = 0; setIndex < config.setCount; setIndex++) {
+        for (var promptIndex = 0;
+            promptIndex < config.promptsPerSet;
+            promptIndex++) {
+          var round = engine.snapshot.currentGame!.rounds.last;
+          var entryP1 =
+              round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
+          expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId),
+              isTrue);
+          expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId),
+              isTrue);
+        }
         expect(engine.closeVotePhase(), isTrue);
         expect(engine.closeReveal(), isTrue);
       }
@@ -213,13 +236,31 @@ void main() {
       expect(engine.submitVote(playerId: 'p1', entryId: 'missing'), isFalse);
     });
 
-    test('rejects self vote when config disallows it', () {
+    test('rejects self vote when config disallows it and >2 entries remain',
+        () {
       var machine = RoomStateMachine(
         snapshot: _baseSnapshot(
           config: const RoomConfig(
-            minPlayersToStart: 2,
+            minPlayersToStart: 3,
             allowSelfVote: false,
           ),
+          players: const {
+            'p1': PlayerSession(
+              playerId: 'p1',
+              displayName: 'A',
+              state: PlayerSessionState.active,
+            ),
+            'p2': PlayerSession(
+              playerId: 'p2',
+              displayName: 'B',
+              state: PlayerSessionState.active,
+            ),
+            'p3': PlayerSession(
+              playerId: 'p3',
+              displayName: 'C',
+              state: PlayerSessionState.active,
+            ),
+          },
         ),
         now: () => _now,
       );
@@ -241,12 +282,193 @@ void main() {
       expect(engine.openEntryInput(), isTrue);
       expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
       expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+      expect(engine.submitEntry(playerId: 'p3', text: 'PANDA'), isTrue);
       expect(engine.snapshot.phase, isA<VoteInputPhase>());
 
       var round = engine.snapshot.currentGame!.rounds.last;
       var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
       expect(
           engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isFalse);
+    });
+
+    test('allows self vote when only 2 active entries remain', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(
+          config: const RoomConfig(
+            minPlayersToStart: 2,
+            allowSelfVote: false,
+            setCount: 1,
+            promptsPerSet: 1,
+          ),
+        ),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(10),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
+      expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+
+      var round = engine.snapshot.currentGame!.rounds.last;
+      var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
+      expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
+    });
+  });
+
+  group('Elimination twist', () {
+    test('after set 1 removes bottom third while keeping at least 3', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(
+          config: const RoomConfig(
+            minPlayersToStart: 4,
+            setCount: 2,
+            promptsPerSet: 1,
+          ),
+          players: const {
+            'p1': PlayerSession(
+              playerId: 'p1',
+              displayName: 'A',
+              state: PlayerSessionState.active,
+            ),
+            'p2': PlayerSession(
+              playerId: 'p2',
+              displayName: 'B',
+              state: PlayerSessionState.active,
+            ),
+            'p3': PlayerSession(
+              playerId: 'p3',
+              displayName: 'C',
+              state: PlayerSessionState.active,
+            ),
+            'p4': PlayerSession(
+              playerId: 'p4',
+              displayName: 'D',
+              state: PlayerSessionState.active,
+            ),
+          },
+        ),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(12),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'A1'), isTrue);
+      expect(engine.submitEntry(playerId: 'p2', text: 'A2'), isTrue);
+      expect(engine.submitEntry(playerId: 'p3', text: 'A3'), isTrue);
+      expect(engine.submitEntry(playerId: 'p4', text: 'A4'), isTrue);
+
+      var round = engine.snapshot.currentGame!.rounds.last;
+      var e1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1').entryId;
+      var e2 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p2').entryId;
+      var e3 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p3').entryId;
+
+      expect(engine.submitVote(playerId: 'p1', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p2', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p3', entryId: e2), isTrue);
+      expect(engine.submitVote(playerId: 'p4', entryId: e3), isTrue);
+      expect(engine.closeVotePhase(), isTrue);
+
+      round = engine.snapshot.currentGame!.rounds.last;
+      var active = round.entries.where((e) => e.status == EntryStatus.active);
+      expect(active.length, 3);
+      var eliminated = round.entries.where((e) => e.status == EntryStatus.eliminated);
+      expect(eliminated.length, 1);
+      expect(eliminated.first.ownerPlayerId, 'p4');
+    });
+
+    test('after set 2 keeps ties together at cutoff', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(
+          config: const RoomConfig(
+            minPlayersToStart: 3,
+            setCount: 2,
+            promptsPerSet: 1,
+          ),
+          players: const {
+            'p1': PlayerSession(
+              playerId: 'p1',
+              displayName: 'A',
+              state: PlayerSessionState.active,
+            ),
+            'p2': PlayerSession(
+              playerId: 'p2',
+              displayName: 'B',
+              state: PlayerSessionState.active,
+            ),
+            'p3': PlayerSession(
+              playerId: 'p3',
+              displayName: 'C',
+              state: PlayerSessionState.active,
+            ),
+          },
+        ),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(13),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'A1'), isTrue);
+      expect(engine.submitEntry(playerId: 'p2', text: 'A2'), isTrue);
+      expect(engine.submitEntry(playerId: 'p3', text: 'A3'), isTrue);
+
+      var round = engine.snapshot.currentGame!.rounds.last;
+      var e1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1').entryId;
+
+      // Set 1: all votes to p1, min keep=3 => no elimination yet.
+      expect(engine.submitVote(playerId: 'p1', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p2', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p3', entryId: e1), isTrue);
+      expect(engine.closeVotePhase(), isTrue);
+      expect(engine.closeReveal(), isTrue);
+
+      // Set 2: all votes to p1 again, p2/p3 tie at cutoff; ties are kept.
+      expect(engine.submitVote(playerId: 'p1', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p2', entryId: e1), isTrue);
+      expect(engine.submitVote(playerId: 'p3', entryId: e1), isTrue);
+      expect(engine.closeVotePhase(), isTrue);
+
+      round = engine.snapshot.currentGame!.rounds.last;
+      var active = round.entries.where((e) => e.status == EntryStatus.active);
+      expect(active.length, 3);
     });
   });
 
@@ -334,11 +556,17 @@ void main() {
   });
 
   group('Scoring integration', () {
-    test('closing vote phase applies points to game scoreboard', () {
+    test('set scoring accumulates during round and applies at round end', () {
       var machine = RoomStateMachine(
         snapshot: _baseSnapshot(
           config:
-              const RoomConfig(minPlayersToStart: 2, scorePoolPerVote: 1000),
+              const RoomConfig(
+                minPlayersToStart: 2,
+                scorePoolPerVote: 1000,
+                setCount: 1,
+                promptsPerSet: 1,
+                roundCount: 1,
+              ),
         ),
         now: () => _now,
       );
@@ -372,15 +600,33 @@ void main() {
 
       expect(engine.closeVotePhase(), isTrue);
 
-      // 1 vote each: 500 points each.
+      // Mid-round scoreboard does not change until round completion.
       var scoreboard = engine.snapshot.currentGame!.scoreboard;
-      expect(scoreboard['p1'], 500);
-      expect(scoreboard['p2'], 500);
+      expect(scoreboard['p1'], 0);
+      expect(scoreboard['p2'], 0);
 
       expect(engine.snapshot.phase, isA<VoteRevealPhase>());
       var reveal = engine.snapshot.phase as VoteRevealPhase;
       expect(reveal.results.pointsByEntry.values.fold<int>(0, (a, b) => a + b),
           1000);
+      expect(
+          engine
+              .snapshot.currentGame!.rounds.last.roundPointsByEntry[entryP1.entryId],
+          500);
+      expect(
+          engine
+              .snapshot.currentGame!.rounds.last.roundPointsByEntry[entryP2.entryId],
+          500);
+
+      expect(engine.closeReveal(), isTrue);
+      expect(engine.snapshot.phase, isA<RoundSummaryPhase>());
+      expect(engine.completeRound(), isTrue);
+      expect(engine.snapshot.phase, isA<GameSummaryPhase>());
+
+      // 1 vote each: 500 points each, applied after round end.
+      scoreboard = engine.snapshot.currentGame!.scoreboard;
+      expect(scoreboard['p1'], 500);
+      expect(scoreboard['p2'], 500);
     });
   });
 }

@@ -4,6 +4,9 @@ import 'dart:collection';
 class RoomConfig {
   final int roundCount;
   final int votePhasesPerRound;
+  final int setCount;
+  final int promptsPerSet;
+  final int setInputSeconds;
   final int entryInputSeconds;
   final int voteInputSeconds;
   final int revealSeconds;
@@ -15,6 +18,9 @@ class RoomConfig {
   const RoomConfig({
     this.roundCount = 3,
     this.votePhasesPerRound = 3,
+    this.setCount = 3,
+    this.promptsPerSet = 3,
+    this.setInputSeconds = 45,
     this.entryInputSeconds = 30,
     this.voteInputSeconds = 20,
     this.revealSeconds = 12,
@@ -24,6 +30,9 @@ class RoomConfig {
     this.minPlayersToStart = 3,
   })  : assert(roundCount > 0),
         assert(votePhasesPerRound > 0),
+        assert(setCount > 0),
+        assert(promptsPerSet > 0),
+        assert(setInputSeconds > 0),
         assert(entryInputSeconds > 0),
         assert(voteInputSeconds > 0),
         assert(revealSeconds > 0),
@@ -162,12 +171,55 @@ class VotePhase {
         assert(promptText != '');
 }
 
+enum VoteSetStatus {
+  pending,
+  active,
+  reveal,
+  complete,
+}
+
+class VotePromptState {
+  final int promptIndex;
+  final String superlativeId;
+  final String promptText;
+  final Map<String, String> votesByPlayer;
+  final VoteResults? results;
+
+  VotePromptState({
+    required this.promptIndex,
+    required this.superlativeId,
+    required this.promptText,
+    required Map<String, String> votesByPlayer,
+    this.results,
+  })  : votesByPlayer = UnmodifiableMapView(Map.of(votesByPlayer)),
+        assert(promptIndex >= 0),
+        assert(superlativeId != ''),
+        assert(promptText != '');
+}
+
+class VoteSet {
+  final int setIndex;
+  final List<VotePromptState> prompts;
+  final VoteSetStatus status;
+
+  VoteSet({
+    required this.setIndex,
+    required List<VotePromptState> prompts,
+    this.status = VoteSetStatus.pending,
+  })  : prompts = List.unmodifiable(List.of(prompts)),
+        assert(setIndex >= 0),
+        assert(prompts.isNotEmpty);
+}
+
 class RoundInstance {
   final String roundId;
   final String categoryId;
   final String categoryLabel;
   final List<Entry> entries;
   final List<VotePhase> votePhases;
+  final List<VoteSet> voteSets;
+  final Map<String, int> roundPointsByEntry;
+  final Map<String, int> roundPointsByPlayerPending;
   final RoundStatus status;
 
   RoundInstance({
@@ -176,9 +228,17 @@ class RoundInstance {
     required this.categoryLabel,
     required List<Entry> entries,
     required List<VotePhase> votePhases,
+    List<VoteSet>? voteSets,
+    Map<String, int>? roundPointsByEntry,
+    Map<String, int>? roundPointsByPlayerPending,
     this.status = RoundStatus.pending,
   })  : entries = List.unmodifiable(List.of(entries)),
         votePhases = List.unmodifiable(List.of(votePhases)),
+        voteSets = List.unmodifiable(List.of(voteSets ?? const [])),
+        roundPointsByEntry =
+            UnmodifiableMapView(Map.of(roundPointsByEntry ?? const {})),
+        roundPointsByPlayerPending = UnmodifiableMapView(
+            Map.of(roundPointsByPlayerPending ?? const {})),
         assert(roundId != ''),
         assert(categoryId != ''),
         assert(categoryLabel != '');
@@ -277,29 +337,43 @@ class VoteInputPhase extends GamePhaseState {
   final int roundIndex;
   final String roundId;
   final int voteIndex;
+  final int setIndex;
   final String superlativeId;
   final String promptText;
   final List<SuperlativePrompt> roundSuperlatives;
+  final List<SuperlativePrompt> setSuperlatives;
   final DateTime endsAt;
   final Map<String, String> votesByPlayer;
+  final Map<String, int> promptIndexByPlayer;
 
   VoteInputPhase({
     required this.roundIndex,
     required this.roundId,
     required this.voteIndex,
+    int? setIndex,
     required this.superlativeId,
     required this.promptText,
     required List<SuperlativePrompt> roundSuperlatives,
+    List<SuperlativePrompt>? setSuperlatives,
     required this.endsAt,
     required Map<String, String> votesByPlayer,
+    Map<String, int>? promptIndexByPlayer,
   })  : roundSuperlatives = List.unmodifiable(List.of(roundSuperlatives)),
+        setIndex = setIndex ?? voteIndex,
+        setSuperlatives = List.unmodifiable(
+          List.of(setSuperlatives ?? roundSuperlatives),
+        ),
         votesByPlayer = UnmodifiableMapView(Map.of(votesByPlayer)),
+        promptIndexByPlayer = UnmodifiableMapView(
+          Map.of(promptIndexByPlayer ?? const {}),
+        ),
         assert(roundIndex >= 0),
         assert(roundId != ''),
         assert(voteIndex >= 0),
         assert(superlativeId != ''),
         assert(promptText != ''),
-        assert(roundSuperlatives.isNotEmpty);
+        assert(roundSuperlatives.isNotEmpty),
+        assert(setSuperlatives == null || setSuperlatives.isNotEmpty);
 
   @override
   String get phase => 'VoteInput';
@@ -309,9 +383,11 @@ class VoteRevealPhase extends GamePhaseState {
   final int roundIndex;
   final String roundId;
   final int voteIndex;
+  final int setIndex;
   final String superlativeId;
   final String promptText;
   final List<SuperlativePrompt> roundSuperlatives;
+  final List<SuperlativePrompt> setSuperlatives;
   final VoteResults results;
   final DateTime endsAt;
 
@@ -319,18 +395,25 @@ class VoteRevealPhase extends GamePhaseState {
     required this.roundIndex,
     required this.roundId,
     required this.voteIndex,
+    int? setIndex,
     required this.superlativeId,
     required this.promptText,
     required List<SuperlativePrompt> roundSuperlatives,
+    List<SuperlativePrompt>? setSuperlatives,
     required this.results,
     required this.endsAt,
   })  : roundSuperlatives = List.unmodifiable(List.of(roundSuperlatives)),
+        setIndex = setIndex ?? voteIndex,
+        setSuperlatives = List.unmodifiable(
+          List.of(setSuperlatives ?? roundSuperlatives),
+        ),
         assert(roundIndex >= 0),
         assert(roundId != ''),
         assert(voteIndex >= 0),
         assert(superlativeId != ''),
         assert(promptText != ''),
-        assert(roundSuperlatives.isNotEmpty);
+        assert(roundSuperlatives.isNotEmpty),
+        assert(setSuperlatives == null || setSuperlatives.isNotEmpty);
 
   @override
   String get phase => 'VoteReveal';

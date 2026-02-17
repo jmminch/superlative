@@ -51,6 +51,9 @@ categories:
       - Coldest
       - Smallest
       - Largest
+      - Most crowded
+      - Quietest
+      - Most likely to have great food
 
   - id: garage
     label: Things found in a garage
@@ -63,6 +66,7 @@ categories:
       - Most satisfying
       - Most likely to leak
       - Most likely to be older than the house
+      - Most likely to be rusty
 
   - id: villains
     label: Villains
@@ -86,6 +90,9 @@ categories:
       - Most famous
       - Least well-known
       - Richest
+      - Most likely to start a trend
+      - Most recognizable voice
+      - Most likely to win a trivia contest
     
   - id: hobbies
     label: Hobbies
@@ -99,4 +106,3 @@ categories:
       - Most boring
       - Hardest
       - Easiest
-

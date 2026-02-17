@@ -26,7 +26,8 @@ class GameEngine {
     List<SuperlativePrompt> pool, {
     int? count,
   }) {
-    var selectCount = count ?? snapshot.config.votePhasesPerRound;
+    var selectCount =
+        count ?? (snapshot.config.setCount * snapshot.config.promptsPerSet);
     if (pool.length < selectCount) {
       throw ArgumentError(
           'Pool has ${pool.length} prompts, need $selectCount.');
@@ -144,28 +145,39 @@ class GameEngine {
     var round = _currentRound();
     if (round == null ||
         voteIndex < 0 ||
-        voteIndex >= round.votePhases.length) {
+        voteIndex >= round.voteSets.length) {
       return false;
     }
 
-    var vote = round.votePhases[voteIndex];
+    var set = round.voteSets[voteIndex];
+    if (set.prompts.isEmpty) {
+      return false;
+    }
+    var firstPrompt = set.prompts.first;
     var roundSuperlatives = round.votePhases
         .map((v) => SuperlativePrompt(
             superlativeId: v.superlativeId, promptText: v.promptText))
         .toList(growable: false);
+    var setSuperlatives = set.prompts
+        .map(
+          (p) =>
+              SuperlativePrompt(superlativeId: p.superlativeId, promptText: p.promptText),
+        )
+        .toList(growable: false);
 
     return stateMachine.transitionTo(
       VoteInputPhase(
-        roundIndex: round.status == RoundStatus.complete
-            ? round.votePhases.length
-            : snapshot.currentGame!.roundIndex,
+        roundIndex: snapshot.currentGame!.roundIndex,
         roundId: round.roundId,
         voteIndex: voteIndex,
-        superlativeId: vote.superlativeId,
-        promptText: vote.promptText,
+        setIndex: voteIndex,
+        superlativeId: firstPrompt.superlativeId,
+        promptText: firstPrompt.promptText,
         roundSuperlatives: roundSuperlatives,
-        endsAt: _now().add(Duration(seconds: snapshot.config.voteInputSeconds)),
-        votesByPlayer: vote.votesByPlayer,
+        setSuperlatives: setSuperlatives,
+        endsAt: _now().add(Duration(seconds: snapshot.config.setInputSeconds)),
+        votesByPlayer: const {},
+        promptIndexByPlayer: const {},
       ),
     );
   }
@@ -229,6 +241,9 @@ class GameEngine {
       categoryLabel: round.categoryLabel,
       entries: entries,
       votePhases: round.votePhases,
+      voteSets: round.voteSets,
+      roundPointsByEntry: round.roundPointsByEntry,
+      roundPointsByPlayerPending: round.roundPointsByPlayerPending,
       status: round.status,
     );
 
@@ -281,9 +296,21 @@ class GameEngine {
     if (voter == null) {
       return false;
     }
+    if (voter.role != SessionRole.player ||
+        voter.state != PlayerSessionState.active) {
+      return false;
+    }
 
     var round = _currentRound();
-    if (round == null || phase.voteIndex >= round.votePhases.length) {
+    if (round == null || phase.setIndex >= round.voteSets.length) {
+      return false;
+    }
+    if (phase.setSuperlatives.isEmpty) {
+      return false;
+    }
+
+    var currentPromptIndex = phase.promptIndexByPlayer[playerId] ?? 0;
+    if (currentPromptIndex >= phase.setSuperlatives.length) {
       return false;
     }
 
@@ -304,21 +331,50 @@ class GameEngine {
       voter: voter,
       entry: targetEntry,
     )) {
-      return false;
+      var activeEntryCount = round.entries
+          .where((e) => e.status == EntryStatus.active)
+          .length;
+      var canOverrideSelfVote = !snapshot.config.allowSelfVote &&
+          activeEntryCount <= 2 &&
+          targetEntry.ownerPlayerId == voter.playerId &&
+          targetEntry.status == EntryStatus.active;
+      if (!canOverrideSelfVote) {
+        return false;
+      }
     }
 
-    var votesMap = Map<String, String>.from(phase.votesByPlayer);
-    votesMap[playerId] = entryId;
-
-    var updatedVotePhases = List<VotePhase>.of(round.votePhases);
-    var existingVote = updatedVotePhases[phase.voteIndex];
-    updatedVotePhases[phase.voteIndex] = VotePhase(
-      voteIndex: existingVote.voteIndex,
-      superlativeId: existingVote.superlativeId,
-      promptText: existingVote.promptText,
-      votesByPlayer: votesMap,
-      results: existingVote.results,
+    var updatedVoteSets = List<VoteSet>.of(round.voteSets);
+    var set = updatedVoteSets[phase.setIndex];
+    var prompts = List<VotePromptState>.of(set.prompts);
+    var prompt = prompts[currentPromptIndex];
+    var promptVotes = Map<String, String>.from(prompt.votesByPlayer);
+    promptVotes[playerId] = entryId;
+    prompts[currentPromptIndex] = VotePromptState(
+      promptIndex: prompt.promptIndex,
+      superlativeId: prompt.superlativeId,
+      promptText: prompt.promptText,
+      votesByPlayer: promptVotes,
+      results: prompt.results,
     );
+    updatedVoteSets[phase.setIndex] = VoteSet(
+      setIndex: set.setIndex,
+      prompts: prompts,
+      status: VoteSetStatus.active,
+    );
+
+    var flatVoteIndex = (phase.setIndex * snapshot.config.promptsPerSet) +
+        currentPromptIndex;
+    var updatedVotePhases = List<VotePhase>.of(round.votePhases);
+    if (flatVoteIndex < updatedVotePhases.length) {
+      var existingVote = updatedVotePhases[flatVoteIndex];
+      updatedVotePhases[flatVoteIndex] = VotePhase(
+        voteIndex: existingVote.voteIndex,
+        superlativeId: existingVote.superlativeId,
+        promptText: existingVote.promptText,
+        votesByPlayer: promptVotes,
+        results: existingVote.results,
+      );
+    }
 
     var updatedRound = RoundInstance(
       roundId: round.roundId,
@@ -326,21 +382,38 @@ class GameEngine {
       categoryLabel: round.categoryLabel,
       entries: round.entries,
       votePhases: updatedVotePhases,
+      voteSets: updatedVoteSets,
+      roundPointsByEntry: round.roundPointsByEntry,
+      roundPointsByPlayerPending: round.roundPointsByPlayerPending,
       status: round.status,
     );
 
     _replaceCurrentRound(updatedRound);
+
+    var updatedPromptIndexByPlayer = Map<String, int>.from(phase.promptIndexByPlayer);
+    var nextPromptIndex = currentPromptIndex + 1;
+    updatedPromptIndexByPlayer[playerId] = nextPromptIndex;
+
+    var updatedVotesMap = Map<String, String>.from(phase.votesByPlayer);
+    updatedVotesMap[playerId] = entryId;
+
+    var displayPromptIndex =
+        _currentDisplayPromptIndex(updatedPromptIndexByPlayer, phase.setSuperlatives.length);
+    var displayPrompt = phase.setSuperlatives[displayPromptIndex];
 
     stateMachine.snapshot = snapshot.copyWith(
       phase: VoteInputPhase(
         roundIndex: phase.roundIndex,
         roundId: phase.roundId,
         voteIndex: phase.voteIndex,
-        superlativeId: phase.superlativeId,
-        promptText: phase.promptText,
+        setIndex: phase.setIndex,
+        superlativeId: displayPrompt.superlativeId,
+        promptText: displayPrompt.promptText,
         roundSuperlatives: phase.roundSuperlatives,
+        setSuperlatives: phase.setSuperlatives,
         endsAt: phase.endsAt,
-        votesByPlayer: votesMap,
+        votesByPlayer: updatedVotesMap,
+        promptIndexByPlayer: updatedPromptIndexByPlayer,
       ),
       updatedAt: _now(),
     );
@@ -355,32 +428,93 @@ class GameEngine {
     }
 
     var round = _currentRound();
-    if (round == null || phase.voteIndex >= round.votePhases.length) {
+    if (round == null || phase.setIndex >= round.voteSets.length) {
       return false;
     }
+    var activeSet = round.voteSets[phase.setIndex];
 
-    var voteResults = ScoringEngine.scoreVotePhase(
-      entries: round.entries,
-      votesByPlayer: phase.votesByPlayer,
-      scorePoolPerVote: snapshot.config.scorePoolPerVote,
+    var combinedVoteCounts = <String, int>{};
+    var combinedPointsByEntry = <String, int>{};
+    var combinedPointsByPlayer = <String, int>{};
+    var updatedSetPrompts = <VotePromptState>[];
+    var updatedVotePhases = List<VotePhase>.of(round.votePhases);
+
+    for (var prompt in activeSet.prompts) {
+      var voteResults = ScoringEngine.scoreVotePhase(
+        entries: round.entries,
+        votesByPlayer: prompt.votesByPlayer,
+        scorePoolPerVote: snapshot.config.scorePoolPerVote,
+      );
+
+      updatedSetPrompts.add(
+        VotePromptState(
+          promptIndex: prompt.promptIndex,
+          superlativeId: prompt.superlativeId,
+          promptText: prompt.promptText,
+          votesByPlayer: prompt.votesByPlayer,
+          results: voteResults,
+        ),
+      );
+
+      for (var e in voteResults.voteCountByEntry.entries) {
+        combinedVoteCounts[e.key] = (combinedVoteCounts[e.key] ?? 0) + e.value;
+      }
+      for (var e in voteResults.pointsByEntry.entries) {
+        combinedPointsByEntry[e.key] =
+            (combinedPointsByEntry[e.key] ?? 0) + e.value;
+      }
+      for (var e in voteResults.pointsByPlayer.entries) {
+        combinedPointsByPlayer[e.key] =
+            (combinedPointsByPlayer[e.key] ?? 0) + e.value;
+      }
+
+      var flatVoteIndex =
+          (phase.setIndex * snapshot.config.promptsPerSet) + prompt.promptIndex;
+      if (flatVoteIndex < updatedVotePhases.length) {
+        var existingVote = updatedVotePhases[flatVoteIndex];
+        updatedVotePhases[flatVoteIndex] = VotePhase(
+          voteIndex: existingVote.voteIndex,
+          superlativeId: existingVote.superlativeId,
+          promptText: existingVote.promptText,
+          votesByPlayer: prompt.votesByPlayer,
+          results: voteResults,
+        );
+      }
+    }
+
+    var setResults = VoteResults(
+      voteCountByEntry: combinedVoteCounts,
+      pointsByEntry: combinedPointsByEntry,
+      pointsByPlayer: combinedPointsByPlayer,
     );
 
-    var updatedVotePhases = List<VotePhase>.of(round.votePhases);
-    var existingVote = updatedVotePhases[phase.voteIndex];
-    updatedVotePhases[phase.voteIndex] = VotePhase(
-      voteIndex: existingVote.voteIndex,
-      superlativeId: existingVote.superlativeId,
-      promptText: existingVote.promptText,
-      votesByPlayer: phase.votesByPlayer,
-      results: voteResults,
+    var updatedVoteSets = List<VoteSet>.of(round.voteSets);
+    updatedVoteSets[phase.setIndex] = VoteSet(
+      setIndex: activeSet.setIndex,
+      prompts: updatedSetPrompts,
+      status: VoteSetStatus.complete,
+    );
+
+    var updatedRoundPointsByEntry = Map<String, int>.from(round.roundPointsByEntry);
+    for (var entry in setResults.pointsByEntry.entries) {
+      updatedRoundPointsByEntry[entry.key] =
+          (updatedRoundPointsByEntry[entry.key] ?? 0) + entry.value;
+    }
+    var updatedEntries = _applyEliminationAfterSet(
+      entries: round.entries,
+      roundPointsByEntry: updatedRoundPointsByEntry,
+      completedSetIndex: phase.setIndex,
     );
 
     var updatedRound = RoundInstance(
       roundId: round.roundId,
       categoryId: round.categoryId,
       categoryLabel: round.categoryLabel,
-      entries: round.entries,
+      entries: updatedEntries,
       votePhases: updatedVotePhases,
+      voteSets: updatedVoteSets,
+      roundPointsByEntry: updatedRoundPointsByEntry,
+      roundPointsByPlayerPending: round.roundPointsByPlayerPending,
       status: round.status,
     );
 
@@ -392,17 +526,11 @@ class GameEngine {
     var rounds = List<RoundInstance>.of(game.rounds);
     rounds[rounds.length - 1] = updatedRound;
 
-    var updatedScoreboard = Map<String, int>.from(game.scoreboard);
-    for (var entry in voteResults.pointsByPlayer.entries) {
-      updatedScoreboard[entry.key] =
-          (updatedScoreboard[entry.key] ?? 0) + entry.value;
-    }
-
     var updatedGame = GameInstance(
       gameId: game.gameId,
       roundIndex: game.roundIndex,
       rounds: rounds,
-      scoreboard: updatedScoreboard,
+      scoreboard: game.scoreboard,
     );
 
     stateMachine.snapshot = snapshot.copyWith(
@@ -414,11 +542,13 @@ class GameEngine {
       VoteRevealPhase(
         roundIndex: phase.roundIndex,
         roundId: phase.roundId,
-        voteIndex: phase.voteIndex,
-        superlativeId: phase.superlativeId,
-        promptText: phase.promptText,
+        voteIndex: phase.setIndex,
+        setIndex: phase.setIndex,
+        superlativeId: 'set_${phase.setIndex + 1}',
+        promptText: 'Set ${phase.setIndex + 1} results',
         roundSuperlatives: phase.roundSuperlatives,
-        results: voteResults,
+        setSuperlatives: phase.setSuperlatives,
+        results: setResults,
         endsAt: _now().add(Duration(seconds: snapshot.config.revealSeconds)),
       ),
     );
@@ -443,6 +573,18 @@ class GameEngine {
       return false;
     }
 
+    var roundPointsByPlayerPending = _roundPointsByPlayer(round);
+    var game = snapshot.currentGame;
+    if (game == null) {
+      return false;
+    }
+
+    var updatedScoreboard = Map<String, int>.from(game.scoreboard);
+    for (var entry in roundPointsByPlayerPending.entries) {
+      updatedScoreboard[entry.key] =
+          (updatedScoreboard[entry.key] ?? 0) + entry.value;
+    }
+
     _replaceCurrentRound(
       RoundInstance(
         roundId: round.roundId,
@@ -450,8 +592,26 @@ class GameEngine {
         categoryLabel: round.categoryLabel,
         entries: round.entries,
         votePhases: round.votePhases,
+        voteSets: round.voteSets,
+        roundPointsByEntry: round.roundPointsByEntry,
+        roundPointsByPlayerPending: roundPointsByPlayerPending,
         status: RoundStatus.complete,
       ),
+    );
+
+    game = snapshot.currentGame;
+    if (game == null) {
+      return false;
+    }
+
+    stateMachine.snapshot = snapshot.copyWith(
+      currentGame: GameInstance(
+        gameId: game.gameId,
+        roundIndex: game.roundIndex,
+        rounds: game.rounds,
+        scoreboard: updatedScoreboard,
+      ),
+      updatedAt: _now(),
     );
 
     if (snapshot.currentGame!.rounds.length >= snapshot.config.roundCount) {
@@ -512,12 +672,41 @@ class GameEngine {
       );
     }
 
+    var voteSets = <VoteSet>[];
+    for (var setIndex = 0; setIndex < snapshot.config.setCount; setIndex++) {
+      var start = setIndex * snapshot.config.promptsPerSet;
+      if (start >= superlatives.length) {
+        break;
+      }
+      var end = start + snapshot.config.promptsPerSet;
+      if (end > superlatives.length) {
+        end = superlatives.length;
+      }
+
+      var prompts = <VotePromptState>[];
+      for (var i = start; i < end; i++) {
+        var p = superlatives[i];
+        prompts.add(
+          VotePromptState(
+            promptIndex: i - start,
+            superlativeId: p.superlativeId,
+            promptText: p.promptText,
+            votesByPlayer: const {},
+          ),
+        );
+      }
+      voteSets.add(VoteSet(setIndex: setIndex, prompts: prompts));
+    }
+
     var round = RoundInstance(
       roundId: 'round_${roundIndex + 1}',
       categoryId: categoryId,
       categoryLabel: categoryLabel,
       entries: const [],
       votePhases: votePhases,
+      voteSets: voteSets,
+      roundPointsByEntry: const {},
+      roundPointsByPlayerPending: const {},
       status: markActive ? RoundStatus.active : RoundStatus.pending,
     );
 
@@ -598,5 +787,110 @@ class GameEngine {
   String _newEntryId(String roundId, String playerId) {
     _entrySeq++;
     return 'e_${roundId}_${playerId}_$_entrySeq';
+  }
+
+  int _currentDisplayPromptIndex(
+    Map<String, int> promptIndexByPlayer,
+    int promptCount,
+  ) {
+    var min = promptCount;
+    for (var value in promptIndexByPlayer.values) {
+      if (value < min) {
+        min = value;
+      }
+    }
+    if (min >= promptCount) {
+      return promptCount - 1;
+    }
+    return min;
+  }
+
+  Map<String, int> _roundPointsByPlayer(RoundInstance round) {
+    var entryOwnerById = <String, String>{};
+    for (var entry in round.entries) {
+      entryOwnerById[entry.entryId] = entry.ownerPlayerId;
+    }
+
+    var pointsByPlayer = <String, int>{};
+    for (var entry in round.roundPointsByEntry.entries) {
+      var owner = entryOwnerById[entry.key];
+      if (owner == null) {
+        continue;
+      }
+      pointsByPlayer[owner] = (pointsByPlayer[owner] ?? 0) + entry.value;
+    }
+    return pointsByPlayer;
+  }
+
+  List<Entry> _applyEliminationAfterSet({
+    required List<Entry> entries,
+    required Map<String, int> roundPointsByEntry,
+    required int completedSetIndex,
+  }) {
+    int minKeep;
+    int desiredKeep;
+
+    var activeEntries = entries.where((e) => e.status == EntryStatus.active).toList();
+    var activeCount = activeEntries.length;
+    if (activeCount == 0) {
+      return entries;
+    }
+
+    if (completedSetIndex == 0) {
+      minKeep = 3;
+      desiredKeep = activeCount - (activeCount ~/ 3);
+    } else if (completedSetIndex == 1) {
+      minKeep = 2;
+      desiredKeep = activeCount - (activeCount ~/ 2);
+    } else {
+      return entries;
+    }
+
+    if (desiredKeep < minKeep) {
+      desiredKeep = minKeep;
+    }
+    if (desiredKeep >= activeCount) {
+      return entries;
+    }
+
+    activeEntries.sort((a, b) {
+      var scoreA = roundPointsByEntry[a.entryId] ?? 0;
+      var scoreB = roundPointsByEntry[b.entryId] ?? 0;
+      var scoreCmp = scoreB.compareTo(scoreA);
+      if (scoreCmp != 0) {
+        return scoreCmp;
+      }
+      return a.entryId.compareTo(b.entryId);
+    });
+
+    var thresholdScore = roundPointsByEntry[activeEntries[desiredKeep - 1].entryId] ?? 0;
+    var keepIds = activeEntries
+        .where((e) => (roundPointsByEntry[e.entryId] ?? 0) >= thresholdScore)
+        .map((e) => e.entryId)
+        .toSet();
+
+    var nextEntries = <Entry>[];
+    for (var entry in entries) {
+      if (entry.status != EntryStatus.active) {
+        nextEntries.add(entry);
+        continue;
+      }
+
+      if (keepIds.contains(entry.entryId)) {
+        nextEntries.add(entry);
+      } else {
+        nextEntries.add(
+          Entry(
+            entryId: entry.entryId,
+            ownerPlayerId: entry.ownerPlayerId,
+            textOriginal: entry.textOriginal,
+            textNormalized: entry.textNormalized,
+            status: EntryStatus.eliminated,
+          ),
+        );
+      }
+    }
+
+    return nextEntries;
   }
 }

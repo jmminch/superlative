@@ -64,18 +64,36 @@ categories:
       - Cutest
       - Loudest
       - Fastest
+      - Most chaotic
+      - Smartest
+      - Sleepiest
+      - Bravest
+      - Most social
+      - Most curious
   - id: foods
     label: Foods
     superlatives:
       - Tastiest
       - Messiest
       - Spiciest
+      - Crunchiest
+      - Sweetest
+      - Healthiest
+      - Least healthy
+      - Best road trip snack
+      - Most comforting
   - id: movies
     label: Movies
     superlatives:
       - Best ending
       - Most quotable
       - Most rewatchable
+      - Funniest
+      - Scariest
+      - Most action-packed
+      - Most mindless
+      - Most interesting
+      - Least interesting
 ''');
 }
 
@@ -92,18 +110,29 @@ void _submitRound(RoomRuntime room, String p1, String p2, String p3) {
 
   expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
 
-  for (var i = 0; i < 3; i++) {
-    var round = room.stateMachine.snapshot.currentGame!.rounds.last;
-    var p3Entry = round.entries.firstWhere((e) => e.ownerPlayerId == p3);
-    expect(
-        room.handleEvent(playerId: p1, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue);
-    expect(
-        room.handleEvent(playerId: p2, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue);
-    expect(
-        room.handleEvent(playerId: p3, event: SubmitVoteEvent(p3Entry.entryId)),
-        isTrue);
+  var config = room.stateMachine.snapshot.config;
+  for (var setIndex = 0; setIndex < config.setCount; setIndex++) {
+    for (var promptIndex = 0;
+        promptIndex < config.promptsPerSet;
+        promptIndex++) {
+      var round = room.stateMachine.snapshot.currentGame!.rounds.last;
+      var p3Entry = round.entries.firstWhere((e) => e.ownerPlayerId == p3);
+      expect(
+          room.handleEvent(
+              playerId: p1, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue);
+      expect(
+          room.handleEvent(
+              playerId: p2, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue);
+      expect(
+          room.handleEvent(
+              playerId: p3, event: SubmitVoteEvent(p3Entry.entryId)),
+          isTrue);
+      if (promptIndex < config.promptsPerSet - 1) {
+        expect(room.stateMachine.snapshot.phase.phase, 'VoteInput');
+      }
+    }
 
     expect(room.stateMachine.snapshot.phase.phase, 'VoteReveal');
     expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);
@@ -155,7 +184,10 @@ void main() {
     expect(room.stateMachine.snapshot.phase.phase, 'GameSummary');
 
     var score = room.stateMachine.snapshot.currentGame!.scoreboard[p3];
-    expect(score, 9000);
+    var config = room.stateMachine.snapshot.config;
+    var expectedScore =
+        config.roundCount * config.setCount * config.promptsPerSet * 1000;
+    expect(score, expectedScore);
 
     // Display receives state envelopes.
     expect(d1.testSink.sent.isNotEmpty, isTrue);
