@@ -43,6 +43,8 @@ class GameEngine {
     required String firstRoundCategoryId,
     required String firstRoundCategoryLabel,
     required List<SuperlativePrompt> firstRoundSuperlatives,
+    DateTime? gameStartingEndsAt,
+    bool showGameStartingInstructions = true,
     DateTime? roundIntroEndsAt,
   }) {
     if (snapshot.phase is! LobbyPhase) {
@@ -89,8 +91,10 @@ class GameEngine {
       roundId: _currentRound()!.roundId,
       categoryLabel: firstRoundCategoryLabel,
       superlatives: firstRoundSuperlatives,
-      roundIntroEndsAt:
-          roundIntroEndsAt ?? _now().add(const Duration(seconds: 5)),
+      gameStartingEndsAt: gameStartingEndsAt ??
+          roundIntroEndsAt ??
+          _now().add(const Duration(seconds: 5)),
+      showGameStartingInstructions: showGameStartingInstructions,
     );
   }
 
@@ -129,6 +133,11 @@ class GameEngine {
   }
 
   bool openEntryInput() {
+    if (snapshot.phase is GameStartingPhase) {
+      if (!stateMachine.onGameStartingTimeout()) {
+        return false;
+      }
+    }
     return stateMachine.onRoundIntroTimeout();
   }
 
@@ -143,9 +152,7 @@ class GameEngine {
     }
 
     var round = _currentRound();
-    if (round == null ||
-        voteIndex < 0 ||
-        voteIndex >= round.voteSets.length) {
+    if (round == null || voteIndex < 0 || voteIndex >= round.voteSets.length) {
       return false;
     }
 
@@ -160,8 +167,8 @@ class GameEngine {
         .toList(growable: false);
     var setSuperlatives = set.prompts
         .map(
-          (p) =>
-              SuperlativePrompt(superlativeId: p.superlativeId, promptText: p.promptText),
+          (p) => SuperlativePrompt(
+              superlativeId: p.superlativeId, promptText: p.promptText),
         )
         .toList(growable: false);
 
@@ -331,9 +338,8 @@ class GameEngine {
       voter: voter,
       entry: targetEntry,
     )) {
-      var activeEntryCount = round.entries
-          .where((e) => e.status == EntryStatus.active)
-          .length;
+      var activeEntryCount =
+          round.entries.where((e) => e.status == EntryStatus.active).length;
       var canOverrideSelfVote = !snapshot.config.allowSelfVote &&
           activeEntryCount <= 2 &&
           targetEntry.ownerPlayerId == voter.playerId &&
@@ -362,8 +368,8 @@ class GameEngine {
       status: VoteSetStatus.active,
     );
 
-    var flatVoteIndex = (phase.setIndex * snapshot.config.promptsPerSet) +
-        currentPromptIndex;
+    var flatVoteIndex =
+        (phase.setIndex * snapshot.config.promptsPerSet) + currentPromptIndex;
     var updatedVotePhases = List<VotePhase>.of(round.votePhases);
     if (flatVoteIndex < updatedVotePhases.length) {
       var existingVote = updatedVotePhases[flatVoteIndex];
@@ -390,7 +396,8 @@ class GameEngine {
 
     _replaceCurrentRound(updatedRound);
 
-    var updatedPromptIndexByPlayer = Map<String, int>.from(phase.promptIndexByPlayer);
+    var updatedPromptIndexByPlayer =
+        Map<String, int>.from(phase.promptIndexByPlayer);
     var nextPromptIndex = currentPromptIndex + 1;
     updatedPromptIndexByPlayer[playerId] = nextPromptIndex;
 
@@ -500,7 +507,8 @@ class GameEngine {
       status: VoteSetStatus.complete,
     );
 
-    var updatedRoundPointsByEntry = Map<String, int>.from(round.roundPointsByEntry);
+    var updatedRoundPointsByEntry =
+        Map<String, int>.from(round.roundPointsByEntry);
     for (var entry in setResults.pointsByEntry.entries) {
       updatedRoundPointsByEntry[entry.key] =
           (updatedRoundPointsByEntry[entry.key] ?? 0) + entry.value;
@@ -847,7 +855,8 @@ class GameEngine {
     int minKeep;
     int desiredKeep;
 
-    var activeEntries = entries.where((e) => e.status == EntryStatus.active).toList();
+    var activeEntries =
+        entries.where((e) => e.status == EntryStatus.active).toList();
     var activeCount = activeEntries.length;
     if (activeCount == 0) {
       return entries;
@@ -880,7 +889,8 @@ class GameEngine {
       return a.entryId.compareTo(b.entryId);
     });
 
-    var thresholdScore = roundPointsByEntry[activeEntries[desiredKeep - 1].entryId] ?? 0;
+    var thresholdScore =
+        roundPointsByEntry[activeEntries[desiredKeep - 1].entryId] ?? 0;
     var keepIds = activeEntries
         .where((e) => (roundPointsByEntry[e.entryId] ?? 0) >= thresholdScore)
         .map((e) => e.entryId)

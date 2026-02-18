@@ -1,6 +1,6 @@
 categories:
-  - id: animals
-    label: Animals
+  - id: animal
+    label: Animal
     superlatives:
       - Cutest
       - Biggest
@@ -14,8 +14,8 @@ categories:
       - Most likely to be found in your neighborhood
       - Best college mascot
 
-  - id: foods
-    label: Foods
+  - id: food
+    label: Food
     superlatives:
       - Tastiest
       - Worst-tasting
@@ -28,8 +28,8 @@ categories:
       - Messiest to eat in a car
       - Best road trip snack
 
-  - id: movies
-    label: Movies
+  - id: movie
+    label: Movie
     superlatives:
       - Most quotable
       - Most likely to make you cry
@@ -42,8 +42,8 @@ categories:
       - Most popular
       - Least well-known
 
-  - id: places
-    label: Places
+  - id: place
+    label: Place
     superlatives:
       - Best vacation spot
       - Worst vacation spot
@@ -56,7 +56,7 @@ categories:
       - Most likely to have great food
 
   - id: garage
-    label: Things found in a garage
+    label: Thing found in a garage
     superlatives:
       - Most likely to cause a minor injury
       - Most used
@@ -68,8 +68,8 @@ categories:
       - Most likely to be older than the house
       - Most likely to be rusty
 
-  - id: villains
-    label: Villains
+  - id: villain
+    label: Villain
     superlatives:
       - Most misunderstood
       - Most likely to win
@@ -82,7 +82,7 @@ categories:
       - Most comical
 
   - id: famous_people
-    label: Famous people
+    label: Famous person
     superlatives:
       - Best choice for President
       - Most likely to survive a zombie attack
@@ -94,8 +94,8 @@ categories:
       - Most recognizable voice
       - Most likely to win a trivia contest
     
-  - id: hobbies
-    label: Hobbies
+  - id: hobby
+    label: Hobby
     superlatives:
       - Most expensive
       - Cheapest

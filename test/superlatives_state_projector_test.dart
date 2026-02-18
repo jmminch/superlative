@@ -86,7 +86,8 @@ SuperlativesRoomSnapshot _snapshotForPhase(
       gameId: 'g1',
       roundIndex: 0,
       rounds: [
-        round ?? _round(results: phase is VoteRevealPhase ? phase.results : null)
+        round ??
+            _round(results: phase is VoteRevealPhase ? phase.results : null)
       ],
       scoreboard: const {'p1': 1200, 'p2': 800},
     ),
@@ -157,6 +158,9 @@ void main() {
       expect(playerPayload.containsKey('youVoted'), isFalse);
       expect(displayPayload.containsKey('youSubmitted'), isFalse);
       expect(displayPayload.containsKey('youVoted'), isFalse);
+      expect(displayPayload['round']['superlatives'], isA<List<dynamic>>());
+      expect(
+          displayPayload['round']['submittedPlayerIds'], equals(const ['p1']));
     });
 
     test('player projection includes vote private flags in VoteInput', () {
@@ -191,6 +195,11 @@ void main() {
       expect(playerPayload['round']['currentPromptIndexForYou'], 1);
       expect(displayPayload.containsKey('youVoted'), isFalse);
       expect(displayPayload.containsKey('yourVoteEntryId'), isFalse);
+      expect(
+        displayPayload['round']['completedPlayerIds'],
+        equals(const ['p1']),
+      );
+      expect(displayPayload['round']['setSuperlatives'], isA<List<dynamic>>());
       var voteEntries = displayPayload['vote']['entries'] as List<dynamic>;
       expect(voteEntries.first.containsKey('ownerPlayerId'), isFalse);
       expect(voteEntries.first.containsKey('ownerDisplayName'), isFalse);
@@ -235,8 +244,10 @@ void main() {
         ),
       );
 
-      var p1Payload = projector.projectForPlayer(playerId: 'p1', snapshot: snapshot);
-      var p2Payload = projector.projectForPlayer(playerId: 'p2', snapshot: snapshot);
+      var p1Payload =
+          projector.projectForPlayer(playerId: 'p1', snapshot: snapshot);
+      var p2Payload =
+          projector.projectForPlayer(playerId: 'p2', snapshot: snapshot);
 
       expect(p1Payload['vote']['promptText'], 'Bravest');
       expect(p1Payload['round']['currentPromptIndexForYou'], 1);
@@ -403,7 +414,12 @@ void main() {
                   ],
                 ),
               ],
-              roundPointsByEntry: const {'e1': 200, 'e2': 200, 'e3': 100, 'e4': 400},
+              roundPointsByEntry: const {
+                'e1': 200,
+                'e2': 200,
+                'e3': 100,
+                'e4': 400
+              },
               roundPointsByPlayerPending: const {},
               status: RoundStatus.active,
             ),
@@ -415,7 +431,8 @@ void main() {
       );
 
       var payload = projector.projectForDisplay(snapshot: snapshot);
-      var results = payload['roundSummary']['superlativeResults'] as List<dynamic>;
+      var results =
+          payload['roundSummary']['superlativeResults'] as List<dynamic>;
       expect(results.length, 2);
 
       var cutest = results[0] as Map<String, dynamic>;

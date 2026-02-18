@@ -84,6 +84,19 @@ class StateProjector {
         'categoryLabel': phase.categoryLabel,
         'superlatives': _superlativesList(phase.superlatives),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
+      };
+      return;
+    }
+
+    if (phase is GameStartingPhase) {
+      payload['gameStarting'] = {
+        'roundIndex': phase.roundIndex,
+        'roundId': phase.roundId,
+        'categoryLabel': phase.categoryLabel,
+        'showInstructions': phase.showInstructions,
+        'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
       return;
     }
@@ -93,10 +106,16 @@ class StateProjector {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'categoryLabel': phase.categoryLabel,
+        'superlatives': _superlativesList(phase.superlatives),
         // Player identities stay hidden until round summary.
         'entries': const [],
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
+      if (role == 'display') {
+        var submittedPlayerIds = phase.submittedPlayerIds.toList()..sort();
+        payload['round']['submittedPlayerIds'] = submittedPlayerIds;
+      }
 
       if (role == 'player' && viewer != null) {
         payload['youSubmitted'] =
@@ -115,12 +134,17 @@ class StateProjector {
           'promptText': phase.promptText,
           'entries': _entriesView(snapshot, round, includeOwner: false),
           'timeoutSeconds': _remainingSeconds(phase.endsAt),
+          'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
         };
         payload['round'] = {
           'roundId': phase.roundId,
+          'categoryLabel': round?.categoryLabel ?? '',
           'currentSetIndex': phase.setIndex,
           'setPromptCount': 0,
+          'setSuperlatives': const <Map<String, dynamic>>[],
+          'completedPlayerIds': const <String>[],
           'setTimeoutSeconds': _remainingSeconds(phase.endsAt),
+          'setTimeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
         };
         if (role == 'player' && viewer != null) {
           payload['youVoted'] = true;
@@ -145,13 +169,28 @@ class StateProjector {
         'promptText': currentPrompt.promptText,
         'entries': _entriesView(snapshot, round, includeOwner: false),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
       payload['round'] = {
         'roundId': phase.roundId,
+        'categoryLabel': round?.categoryLabel ?? '',
         'currentSetIndex': phase.setIndex,
         'setPromptCount': setPromptCount,
+        'setSuperlatives': _superlativesList(phase.setSuperlatives),
         'setTimeoutSeconds': _remainingSeconds(phase.endsAt),
+        'setTimeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
+      if (role == 'display') {
+        var completedPlayerIds = <String>[];
+        for (var player in snapshot.activePlayerSessions) {
+          var promptIndex = phase.promptIndexByPlayer[player.playerId] ?? 0;
+          if (promptIndex >= setPromptCount) {
+            completedPlayerIds.add(player.playerId);
+          }
+        }
+        completedPlayerIds.sort();
+        payload['round']['completedPlayerIds'] = completedPlayerIds;
+      }
 
       if (role == 'player' && viewer != null) {
         payload['youVoted'] = isDone;
@@ -176,13 +215,15 @@ class StateProjector {
         'superlativeId': phase.superlativeId,
         'promptText': phase.promptText,
         'entries': _entriesView(snapshot, round, includeOwner: false),
-        'roundPointsByEntry': round?.roundPointsByEntry ?? const <String, int>{},
+        'roundPointsByEntry':
+            round?.roundPointsByEntry ?? const <String, int>{},
         'results': {
           'voteCountByEntry': phase.results.voteCountByEntry,
           'pointsByEntry': phase.results.pointsByEntry,
           'pointsByPlayer': phase.results.pointsByPlayer,
         },
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
       return;
     }
@@ -194,6 +235,7 @@ class StateProjector {
         'playerRoundResults': _roundSummaryRows(snapshot, round),
         'superlativeResults': _roundSummarySuperlativeResults(snapshot, round),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
       return;
     }
@@ -203,6 +245,8 @@ class StateProjector {
         'gameId': phase.gameId,
         'timeoutSeconds':
             phase.endsAt == null ? null : _remainingSeconds(phase.endsAt!),
+        'timeoutAtMs':
+            phase.endsAt == null ? null : phase.endsAt!.millisecondsSinceEpoch,
       };
       return;
     }
@@ -252,10 +296,8 @@ class StateProjector {
   }
 
   List<Map<String, dynamic>> _entriesView(
-    SuperlativesRoomSnapshot snapshot,
-    RoundInstance? round,
-    {required bool includeOwner}
-  ) {
+      SuperlativesRoomSnapshot snapshot, RoundInstance? round,
+      {required bool includeOwner}) {
     if (round == null) {
       return const [];
     }
@@ -263,22 +305,19 @@ class StateProjector {
     var entries = List<Entry>.of(round.entries)
       ..sort((a, b) => a.entryId.compareTo(b.entryId));
 
-    return entries
-        .map((e) {
-          var row = <String, dynamic>{
-            'entryId': e.entryId,
-            'text': e.textOriginal,
-            'status': e.status.name,
-          };
-          if (includeOwner) {
-            row['ownerPlayerId'] = e.ownerPlayerId;
-            row['ownerDisplayName'] =
-                snapshot.players[e.ownerPlayerId]?.displayName ??
-                    e.ownerPlayerId;
-          }
-          return row;
-        })
-        .toList(growable: false);
+    return entries.map((e) {
+      var row = <String, dynamic>{
+        'entryId': e.entryId,
+        'text': e.textOriginal,
+        'status': e.status.name,
+      };
+      if (includeOwner) {
+        row['ownerPlayerId'] = e.ownerPlayerId;
+        row['ownerDisplayName'] =
+            snapshot.players[e.ownerPlayerId]?.displayName ?? e.ownerPlayerId;
+      }
+      return row;
+    }).toList(growable: false);
   }
 
   List<Map<String, dynamic>> _superlativesList(
@@ -346,7 +385,8 @@ class StateProjector {
         promptIndex >= round.voteSets[setIndex].prompts.length) {
       return null;
     }
-    return round.voteSets[setIndex].prompts[promptIndex].votesByPlayer[playerId];
+    return round
+        .voteSets[setIndex].prompts[promptIndex].votesByPlayer[playerId];
   }
 
   List<Map<String, dynamic>> _roundSummaryRows(
@@ -418,7 +458,8 @@ class StateProjector {
             .toList();
 
         ranked.sort((a, b) {
-          var countCmp = (b['voteCount'] as int).compareTo(a['voteCount'] as int);
+          var countCmp =
+              (b['voteCount'] as int).compareTo(a['voteCount'] as int);
           if (countCmp != 0) {
             return countCmp;
           }

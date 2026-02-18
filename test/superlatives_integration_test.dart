@@ -182,13 +182,16 @@ void main() {
 
     expect(
         room.handleEvent(playerId: p1, event: const StartGameEvent()), isTrue);
+    expect(room.stateMachine.snapshot.phase.phase, 'GameStarting');
+    expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);
     expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
 
     _submitRound(room, p1, p2, p3);
-    var roundScore = room.stateMachine.snapshot.currentGame!.scoreboard[p3] ?? 0;
+    var roundScore =
+        room.stateMachine.snapshot.currentGame!.scoreboard[p3] ?? 0;
     expect(roundScore, 0);
-    var pointsAfterRound1 = room.stateMachine
-            .snapshot.currentGame!.rounds.last.roundPointsByPlayerPending[p3] ??
+    var pointsAfterRound1 = room.stateMachine.snapshot.currentGame!.rounds.last
+            .roundPointsByPlayerPending[p3] ??
         0;
     expect(pointsAfterRound1, 0);
     var roundSummaryPayloadsAfterR1 = _statePayloads(c1.testSink)
@@ -212,7 +215,8 @@ void main() {
     var scoreAfterRound1Advance =
         room.stateMachine.snapshot.currentGame!.scoreboard[p3] ?? 0;
     var config = room.stateMachine.snapshot.config;
-    expect(scoreAfterRound1Advance, config.setCount * config.promptsPerSet * 1000);
+    expect(
+        scoreAfterRound1Advance, config.setCount * config.promptsPerSet * 1000);
 
     _submitRound(room, p1, p2, p3);
     expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);

@@ -230,6 +230,7 @@ class RoomRuntime {
 
   int _playerSeq = 0;
   int _displaySeq = 0;
+  bool _hasStartedGameInSession = false;
 
   RoomRuntime({
     required this.roomCode,
@@ -492,17 +493,27 @@ class RoomRuntime {
   }
 
   bool _handleStartGame(String hostPlayerId) {
+    var showInstructions = !_hasStartedGameInSession;
+    var gameStartingSeconds = showInstructions ? 15 : 5;
     var roundContent = _contentProvider.selectRoundContent(
       config: stateMachine.snapshot.config,
       random: _random,
     );
 
-    return engine.startGame(
+    var started = engine.startGame(
       hostPlayerId: hostPlayerId,
       firstRoundCategoryId: roundContent.categoryId,
       firstRoundCategoryLabel: roundContent.categoryLabel,
       firstRoundSuperlatives: roundContent.superlatives,
+      gameStartingEndsAt:
+          DateTime.now().add(Duration(seconds: gameStartingSeconds)),
+      showGameStartingInstructions: showInstructions,
     );
+
+    if (started) {
+      _hasStartedGameInSession = true;
+    }
+    return started;
   }
 
   bool _handleAdvance(String playerId) {

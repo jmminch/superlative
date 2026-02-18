@@ -103,7 +103,7 @@ void main() {
       expect(machine.snapshot.phase, isA<LobbyPhase>());
     });
 
-    test('host start game enters round intro and schedules timer', () {
+    test('host start game enters game starting and schedules timer', () {
       var scheduler = _FakeScheduler();
       var machine = RoomStateMachine(
         snapshot: _buildLobbySnapshot(),
@@ -121,7 +121,7 @@ void main() {
       );
 
       expect(ok, isTrue);
-      expect(machine.snapshot.phase, isA<RoundIntroPhase>());
+      expect(machine.snapshot.phase, isA<GameStartingPhase>());
       expect(scheduler.activeTimerCount, 1);
     });
   });
@@ -297,7 +297,7 @@ void main() {
       );
 
       expect(ok, isTrue);
-      expect(machine.snapshot.phase, isA<RoundIntroPhase>());
+      expect(machine.snapshot.phase, isA<GameStartingPhase>());
       expect(machine.snapshot.hostPlayerId, 'p2');
     });
 

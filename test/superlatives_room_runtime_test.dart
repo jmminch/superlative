@@ -146,9 +146,12 @@ void main() {
       // Any active player can start; starter becomes host.
       expect(room.handleEvent(playerId: p2Id, event: const StartGameEvent()),
           isTrue);
-      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
+      expect(room.stateMachine.snapshot.phase.phase, 'GameStarting');
       expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
 
+      expect(room.handleEvent(playerId: p2Id, event: const AdvanceEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
       expect(room.handleEvent(playerId: p2Id, event: const AdvanceEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
@@ -179,7 +182,8 @@ void main() {
 
       var promptsPerSet = room.stateMachine.snapshot.config.promptsPerSet;
       expect(
-        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),
+        room.handleEvent(
+            playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),
         isTrue,
       );
 
@@ -199,11 +203,13 @@ void main() {
           p2PayloadAfterP2Vote['round']['currentPromptIndexForYou'], equals(1));
 
       expect(
-        room.handleEvent(playerId: hostId, event: SubmitVoteEvent(p3Entry.entryId)),
+        room.handleEvent(
+            playerId: hostId, event: SubmitVoteEvent(p3Entry.entryId)),
         isTrue,
       );
       expect(
-        room.handleEvent(playerId: p3Id, event: SubmitVoteEvent(p3Entry.entryId)),
+        room.handleEvent(
+            playerId: p3Id, event: SubmitVoteEvent(p3Entry.entryId)),
         isTrue,
       );
 
@@ -299,7 +305,7 @@ void main() {
       expect(room.handleEvent(playerId: p2Id, event: const StartGameEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
-      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
+      expect(room.stateMachine.snapshot.phase.phase, 'GameStarting');
 
       // Second start attempt loses race because game has already started.
       expect(room.handleEvent(playerId: p1Id, event: const StartGameEvent()),
@@ -307,7 +313,8 @@ void main() {
       expect(room.stateMachine.snapshot.hostPlayerId, p2Id);
     });
 
-    test('does not increment missed actions when entry phase timeout extends', () {
+    test('does not increment missed actions when entry phase timeout extends',
+        () {
       var room = RoomRuntime(
         roomCode: 'TEST1',
         contentProvider: _provider(),
@@ -330,6 +337,9 @@ void main() {
           isTrue);
       expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
           isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+          isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
 
       expect(
@@ -338,7 +348,8 @@ void main() {
         isTrue,
       );
       expect(
-        room.handleEvent(playerId: p2Id, event: const SubmitEntryEvent('OTTER')),
+        room.handleEvent(
+            playerId: p2Id, event: const SubmitEntryEvent('OTTER')),
         isTrue,
       );
 
@@ -368,6 +379,9 @@ void main() {
 
       expect(room.handleEvent(playerId: hostId, event: const StartGameEvent()),
           isTrue);
+      expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
+          isTrue);
+      expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
       expect(room.handleEvent(playerId: hostId, event: const AdvanceEvent()),
           isTrue);
       expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');

@@ -237,8 +237,8 @@ class RoundInstance {
         voteSets = List.unmodifiable(List.of(voteSets ?? const [])),
         roundPointsByEntry =
             UnmodifiableMapView(Map.of(roundPointsByEntry ?? const {})),
-        roundPointsByPlayerPending = UnmodifiableMapView(
-            Map.of(roundPointsByPlayerPending ?? const {})),
+        roundPointsByPlayerPending =
+            UnmodifiableMapView(Map.of(roundPointsByPlayerPending ?? const {})),
         assert(roundId != ''),
         assert(categoryId != ''),
         assert(categoryLabel != '');
@@ -276,7 +276,25 @@ class LobbyPhase extends GamePhaseState {
 }
 
 class GameStartingPhase extends GamePhaseState {
-  const GameStartingPhase();
+  final int roundIndex;
+  final String roundId;
+  final String categoryLabel;
+  final List<SuperlativePrompt> superlatives;
+  final DateTime endsAt;
+  final bool showInstructions;
+
+  GameStartingPhase({
+    required this.roundIndex,
+    required this.roundId,
+    required this.categoryLabel,
+    required List<SuperlativePrompt> superlatives,
+    required this.endsAt,
+    required this.showInstructions,
+  })  : superlatives = List.unmodifiable(List.of(superlatives)),
+        assert(roundIndex >= 0),
+        assert(roundId != ''),
+        assert(categoryLabel != ''),
+        assert(superlatives.isNotEmpty);
 
   @override
   String get phase => 'GameStarting';

@@ -1,10 +1,10 @@
 # Superlatives Next Steps Implementation Spec
 
 ## Status
-Draft v1, February 17, 2026.
+Completed v1, updated February 18, 2026.
 
 ## Purpose
-Define the implementation required to deliver the release-blocking items in `design/superlatives-next-steps.md`, with exact behavior for gameplay, server controls, and player UI.
+Capture the implemented behavior for the release-blocking items from `design/superlatives-next-steps.md`, including exact gameplay, server-control, and player-UI behavior.
 
 ## Scope
 In scope:
@@ -18,18 +18,11 @@ Out of scope:
 - New account/auth model.
 - Display-client redesign beyond data compatibility.
 
-## Baseline and Required Deltas
-Current baseline (from code):
-- 3 superlatives per round (single linear sequence).
-- Scoring and reveal happen per superlative, and points are added to global scoreboard immediately.
-- Host is effectively the initial room host and only host can start.
-- Player UI exposes internal phase and owner identities during voting/reveal.
-
-Required deltas:
-- Round structure becomes 3 sets x 3 prompts each.
+## Implemented Behavior Summary
+- Round structure is 3 sets x 3 prompts each.
 - Scoring accrues to per-entry round points during sets; player totals update once at round end.
 - Elimination occurs after set 1 and set 2 before next set begins.
-- Player attribution hidden until round summary.
+- Player attribution remains hidden until round summary.
 
 ## Functional Requirements
 

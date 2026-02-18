@@ -101,6 +101,8 @@ class RoomStateMachine {
     String? roundId,
     String? categoryLabel,
     List<SuperlativePrompt>? superlatives,
+    DateTime? gameStartingEndsAt,
+    bool? showGameStartingInstructions,
     DateTime? roundIntroEndsAt,
   }) {
     if (!canPlayerControl(playerId, event)) {
@@ -116,11 +118,14 @@ class RoomStateMachine {
             snapshot.config.minPlayersToStart) {
           return false;
         }
+        var effectiveGameStartingEndsAt =
+            gameStartingEndsAt ?? roundIntroEndsAt;
+        var effectiveShowInstructions = showGameStartingInstructions ?? true;
         if (roundId == null ||
             categoryLabel == null ||
             superlatives == null ||
             superlatives.isEmpty ||
-            roundIntroEndsAt == null) {
+            effectiveGameStartingEndsAt == null) {
           return false;
         }
 
@@ -129,21 +134,21 @@ class RoomStateMachine {
           updatedAt: _now(),
         );
 
-        if (!transitionTo(const GameStartingPhase())) {
-          return false;
-        }
-
         return transitionTo(
-          RoundIntroPhase(
+          GameStartingPhase(
             roundIndex: 0,
             roundId: roundId,
             categoryLabel: categoryLabel,
             superlatives: superlatives,
-            endsAt: roundIntroEndsAt,
+            endsAt: effectiveGameStartingEndsAt,
+            showInstructions: effectiveShowInstructions,
           ),
         );
 
       case HostControlEvent.advance:
+        if (snapshot.phase is GameStartingPhase) {
+          return onGameStartingTimeout();
+        }
         if (snapshot.phase is RoundIntroPhase) {
           return onRoundIntroTimeout();
         }
@@ -179,6 +184,23 @@ class RoomStateMachine {
         endsAt:
             _now().add(Duration(seconds: snapshot.config.entryInputSeconds)),
         submittedPlayerIds: <String>{},
+      ),
+    );
+  }
+
+  bool onGameStartingTimeout() {
+    var phase = snapshot.phase;
+    if (phase is! GameStartingPhase) {
+      return false;
+    }
+
+    return transitionTo(
+      RoundIntroPhase(
+        roundIndex: phase.roundIndex,
+        roundId: phase.roundId,
+        categoryLabel: phase.categoryLabel,
+        superlatives: phase.superlatives,
+        endsAt: _now().add(const Duration(seconds: 5)),
       ),
     );
   }
@@ -383,6 +405,9 @@ class RoomStateMachine {
   }
 
   DateTime? _phaseEndsAt(GamePhaseState phase) {
+    if (phase is GameStartingPhase) {
+      return phase.endsAt;
+    }
     if (phase is RoundIntroPhase) {
       return phase.endsAt;
     }
@@ -412,6 +437,12 @@ class RoomStateMachine {
       return;
     }
 
+    if (phase is GameStartingPhase) {
+      if (onGameStartingTimeout()) {
+        onAutoTransition?.call(snapshot);
+      }
+      return;
+    }
     if (phase is RoundIntroPhase) {
       if (onRoundIntroTimeout()) {
         onAutoTransition?.call(snapshot);
@@ -475,9 +506,7 @@ class RoomStateMachine {
     List<SuperlativePrompt> all, {
     required int setIndex,
   }) {
-    if (setIndex < 0 ||
-        setIndex >= snapshot.config.setCount ||
-        all.isEmpty) {
+    if (setIndex < 0 || setIndex >= snapshot.config.setCount || all.isEmpty) {
       return const [];
     }
 

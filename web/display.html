@@ -5,20 +5,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="client.css">
+  <link rel="stylesheet" href="display.css">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="display-client">
   <div id="header">
     <div id="header-top">
       <span id="header-room">Room: -</span>
-      <span id="header-role">DISPLAY</span>
     </div>
-    <div id="header-title">SUPERLATIVES DISPLAY</div>
-    <div id="header-phase">Phase: -</div>
-    <div id="header-timer"></div>
+    <div id="header-title">SUPERLATIVES</div>
   </div>
 
-  <main id="app" class="display-mode">
+  <main id="app">
     <section id="screen-login" class="screen active">
       <h2>Connect Display</h2>
       <label for="login-room">Room Code</label>
@@ -33,6 +31,11 @@
       <p id="lobby-note" class="note"></p>
     </section>
 
+    <section id="screen-game-starting" class="screen">
+      <h2 id="game-starting-title">the game of SUPERLATIVES</h2>
+      <div id="game-starting-lines" class="game-starting-lines"></div>
+    </section>
+
     <section id="screen-round-intro" class="screen">
       <h2 id="round-title">Round</h2>
       <p id="round-category"></p>
@@ -40,19 +43,19 @@
     </section>
 
     <section id="screen-entry" class="screen">
-      <h2>Entry Phase</h2>
       <p id="entry-category"></p>
-      <div id="entry-list" class="card-list"></div>
+      <div id="entry-superlatives" class="card-list superlative-strip"></div>
+      <div id="entry-player-progress" class="card-list"></div>
     </section>
 
     <section id="screen-vote" class="screen">
-      <h2 id="vote-title">Vote</h2>
+      <p id="vote-category"></p>
       <p id="vote-prompt"></p>
-      <div id="vote-list" class="card-list"></div>
+      <div id="vote-superlatives" class="card-list superlative-strip"></div>
+      <div id="vote-player-progress" class="card-list"></div>
     </section>
 
     <section id="screen-reveal" class="screen">
-      <h2>Vote Reveal</h2>
       <p id="reveal-prompt"></p>
       <div id="reveal-list" class="card-list"></div>
     </section>
@@ -64,6 +67,7 @@
 
     <section id="screen-game-summary" class="screen">
       <h2>Final Scores</h2>
+      <div id="game-summary-podium" class="podium-grid"></div>
       <div id="game-summary-board" class="card-list"></div>
     </section>
 
@@ -72,6 +76,11 @@
       <p id="error-text"></p>
     </section>
   </main>
+
+  <div id="display-timer-shell" aria-hidden="true">
+    <div id="display-timer-bar"></div>
+    <div id="display-timer-text"></div>
+  </div>
 
   <div id="footer-actions">
     <button id="disconnect" class="secondary">Disconnect</button>

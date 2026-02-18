@@ -1,10 +1,10 @@
 # Superlatives Next Steps Detailed Phased Plan
 
 ## Status
-Draft v1, February 17, 2026.
+Completed v1, updated February 18, 2026.
 
 ## Goal
-Implement all items in `design/superlatives-next-steps.md` using incremental phases that keep the game runnable and testable after each phase.
+Record the phased implementation used to deliver all items in `design/superlatives-next-steps.md` while keeping the game runnable and testable after each phase.
 
 ## Delivery Strategy
 - Land server model and behavior first.

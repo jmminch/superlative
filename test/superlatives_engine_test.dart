@@ -50,6 +50,9 @@ List<SuperlativePrompt> _roundPrompts() {
 }
 
 void _playRoundToSummary(GameEngine engine) {
+  if (engine.snapshot.phase is GameStartingPhase) {
+    expect(engine.stateMachine.onGameStartingTimeout(), isTrue);
+  }
   expect(engine.openEntryInput(), isTrue);
   expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
   expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
@@ -64,10 +67,10 @@ void _playRoundToSummary(GameEngine engine) {
       var round = engine.snapshot.currentGame!.rounds.last;
       var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
 
-      expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId),
-          isTrue);
-      expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId),
-          isTrue);
+      expect(
+          engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
+      expect(
+          engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
     }
 
     expect(engine.closeVotePhase(), isTrue);
@@ -274,11 +277,13 @@ void main() {
       var phaseBefore = engine.snapshot.phase as VoteInputPhase;
       expect(phaseBefore.promptText, 'Cutest');
 
-      expect(engine.submitVote(playerId: 'p1', entryId: entryP2.entryId), isTrue);
+      expect(
+          engine.submitVote(playerId: 'p1', entryId: entryP2.entryId), isTrue);
       var phaseAfterOneVote = engine.snapshot.phase as VoteInputPhase;
       expect(phaseAfterOneVote.promptText, 'Cutest');
 
-      expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
+      expect(
+          engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
       var phaseAfterBothVoted = engine.snapshot.phase as VoteInputPhase;
       expect(phaseAfterBothVoted.promptText, 'Bravest');
     });
@@ -371,7 +376,8 @@ void main() {
 
       var round = engine.snapshot.currentGame!.rounds.last;
       var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
-      expect(engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
+      expect(
+          engine.submitVote(playerId: 'p1', entryId: entryP1.entryId), isTrue);
     });
   });
 
@@ -444,7 +450,8 @@ void main() {
       round = engine.snapshot.currentGame!.rounds.last;
       var active = round.entries.where((e) => e.status == EntryStatus.active);
       expect(active.length, 3);
-      var eliminated = round.entries.where((e) => e.status == EntryStatus.eliminated);
+      var eliminated =
+          round.entries.where((e) => e.status == EntryStatus.eliminated);
       expect(eliminated.length, 1);
       expect(eliminated.first.ownerPlayerId, 'p4');
     });
@@ -606,14 +613,13 @@ void main() {
     test('set scoring accumulates during round and applies at round end', () {
       var machine = RoomStateMachine(
         snapshot: _baseSnapshot(
-          config:
-              const RoomConfig(
-                minPlayersToStart: 2,
-                scorePoolPerVote: 1000,
-                setCount: 1,
-                promptsPerSet: 1,
-                roundCount: 1,
-              ),
+          config: const RoomConfig(
+            minPlayersToStart: 2,
+            scorePoolPerVote: 1000,
+            setCount: 1,
+            promptsPerSet: 1,
+            roundCount: 1,
+          ),
         ),
         now: () => _now,
       );
@@ -657,12 +663,12 @@ void main() {
       expect(reveal.results.pointsByEntry.values.fold<int>(0, (a, b) => a + b),
           1000);
       expect(
-          engine
-              .snapshot.currentGame!.rounds.last.roundPointsByEntry[entryP1.entryId],
+          engine.snapshot.currentGame!.rounds.last
+              .roundPointsByEntry[entryP1.entryId],
           500);
       expect(
-          engine
-              .snapshot.currentGame!.rounds.last.roundPointsByEntry[entryP2.entryId],
+          engine.snapshot.currentGame!.rounds.last
+              .roundPointsByEntry[entryP2.entryId],
           500);
 
       expect(engine.closeReveal(), isTrue);

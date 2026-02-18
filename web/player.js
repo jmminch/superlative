@@ -3,11 +3,11 @@ let reconnect = false;
 let loggedIn = false;
 let reconnectDelayMs = 800;
 let currentPayload = null;
-let timerId = null;
+let timerFrameId = null;
 let timerMode = 'none';
-let timerStartSeconds = 0;
-let timerSeconds = 0;
 let timerKey = null;
+let timerDeadlineMs = 0;
+let timerDurationMs = 0;
 
 function byId(id) {
   return document.getElementById(id);
@@ -144,14 +144,14 @@ function showScreen(id) {
 }
 
 function clearTimer() {
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
+  if (timerFrameId !== null) {
+    cancelAnimationFrame(timerFrameId);
+    timerFrameId = null;
   }
   timerMode = 'none';
-  timerStartSeconds = 0;
-  timerSeconds = 0;
   timerKey = null;
+  timerDeadlineMs = 0;
+  timerDurationMs = 0;
 }
 
 function setTimerBarWidth(percent, immediate = false) {
@@ -170,9 +170,38 @@ function setTimerBarWidth(percent, immediate = false) {
   }
 }
 
+function _timerPercentAt(nowMs) {
+  if (timerMode === 'entry-extend-empty') {
+    return 0;
+  }
+  if (timerDurationMs <= 0) {
+    return 0;
+  }
+  let remainingMs = Math.max(0, timerDeadlineMs - nowMs);
+  return (remainingMs / timerDurationMs) * 100;
+}
+
+function _renderTimerFrame() {
+  let nowMs = Date.now();
+  setTimerBarWidth(_timerPercentAt(nowMs));
+  if (nowMs >= timerDeadlineMs) {
+    timerFrameId = null;
+    return;
+  }
+  timerFrameId = requestAnimationFrame(_renderTimerFrame);
+}
+
+function _startTimerLoop() {
+  if (timerFrameId !== null) {
+    cancelAnimationFrame(timerFrameId);
+  }
+  timerFrameId = requestAnimationFrame(_renderTimerFrame);
+}
+
 function attachTimer(initialSeconds, options = {}) {
   let mode = options.mode || 'normal';
   let nextKey = options.key || null;
+  let suppliedDeadlineMs = Number(options.deadlineMs);
 
   if (initialSeconds === null || initialSeconds === undefined) {
     clearTimer();
@@ -181,59 +210,47 @@ function attachTimer(initialSeconds, options = {}) {
   }
 
   let nextSeconds = Math.max(0, Number(initialSeconds) || 0);
-  let restart = !timerId || timerMode !== mode || timerKey !== nextKey;
+  let nowMs = Date.now();
+  let nextDeadlineMs = Number.isFinite(suppliedDeadlineMs) && suppliedDeadlineMs > 0
+    ? suppliedDeadlineMs
+    : nowMs + (nextSeconds * 1000);
+  let restart = timerFrameId === null || timerMode !== mode || timerKey !== nextKey;
 
-  if (mode === 'entry-extend-empty' && timerId) {
+  if (mode === 'entry-extend-empty' && timerFrameId !== null) {
     timerKey = nextKey;
-    timerSeconds = nextSeconds;
+    timerDeadlineMs = nextDeadlineMs;
     setTimerBarWidth(0);
     return;
   }
 
-  if (!restart && timerId) {
-    timerSeconds = Math.min(timerSeconds, nextSeconds);
+  if (!restart && timerFrameId !== null) {
+    timerDeadlineMs = Math.min(timerDeadlineMs, nextDeadlineMs);
     return;
   }
 
-  if (timerId && restart) {
-    clearInterval(timerId);
-    timerId = null;
+  if (timerFrameId !== null && restart) {
+    cancelAnimationFrame(timerFrameId);
+    timerFrameId = null;
   }
 
   timerMode = mode;
   timerKey = nextKey;
-  timerStartSeconds = Math.max(1, nextSeconds);
-  timerSeconds = nextSeconds;
+  timerDeadlineMs = nextDeadlineMs;
+  timerDurationMs = Math.max(1, timerDeadlineMs - nowMs);
 
-  let update = function () {
-    if (timerMode === 'entry-extend-empty') {
-      setTimerBarWidth(0);
-      return;
-    }
-    let percent = (timerSeconds / timerStartSeconds) * 100;
-    setTimerBarWidth(percent);
-  };
-
-  update();
-  setTimerBarWidth((timerSeconds / timerStartSeconds) * 100, true);
-
-  if (!timerId) {
-    timerId = setInterval(function () {
-      timerSeconds = Math.max(0, timerSeconds - 1);
-      update();
-      if (timerSeconds <= 0) {
-        clearInterval(timerId);
-        timerId = null;
-      }
-    }, 1000);
+  if (timerMode === 'entry-extend-empty') {
+    setTimerBarWidth(0, true);
+  } else {
+    setTimerBarWidth(100, true);
+    _startTimerLoop();
   }
 }
 
-function entryTimerMode(payload) {
-  if (!currentPayload || currentPayload.phase !== 'EntryInput') {
+function entryTimerMode(payload, previousPayload) {
+  if (!previousPayload || previousPayload.phase !== 'EntryInput') {
     return 'normal';
   }
-  let prev = currentPayload.round || {};
+  let prev = previousPayload.round || {};
   let curr = payload.round || {};
   if (
     typeof prev.timeoutSeconds === 'number' &&
@@ -348,7 +365,8 @@ function renderState(payload, previousPayload) {
       ).join('');
       attachTimer(payload.round.timeoutSeconds, {
         mode: 'normal',
-        key: `RoundIntro:${payload.round.roundId}`
+        key: `RoundIntro:${payload.round.roundId}`,
+        deadlineMs: payload.round.timeoutAtMs
       });
       showScreen('screen-round-intro');
       break;
@@ -360,8 +378,9 @@ function renderState(payload, previousPayload) {
         ? 'Submitted. Waiting for others.'
         : '';
       attachTimer(payload.round.timeoutSeconds, {
-        mode: entryTimerMode(payload),
-        key: `EntryInput:${payload.round.roundId}`
+        mode: entryTimerMode(payload, previousPayload),
+        key: `EntryInput:${payload.round.roundId}`,
+        deadlineMs: payload.round.timeoutAtMs
       });
       showScreen('screen-entry');
       break;
@@ -378,7 +397,8 @@ function renderState(payload, previousPayload) {
       );
       attachTimer(payload.vote.timeoutSeconds, {
         mode: 'normal',
-        key: `VoteInput:${payload.vote.roundId}:${payload.round.currentSetIndex}`
+        key: `VoteInput:${payload.vote.roundId}:${payload.round.currentSetIndex}`,
+        deadlineMs: payload.vote.timeoutAtMs
       });
       showScreen('screen-vote');
       break;
@@ -392,7 +412,8 @@ function renderState(payload, previousPayload) {
       );
       attachTimer(payload.reveal.timeoutSeconds, {
         mode: 'normal',
-        key: `VoteReveal:${payload.reveal.roundId}:${payload.reveal.setIndex}`
+        key: `VoteReveal:${payload.reveal.roundId}:${payload.reveal.setIndex}`,
+        deadlineMs: payload.reveal.timeoutAtMs
       });
       showScreen('screen-reveal');
       break;
@@ -404,7 +425,8 @@ function renderState(payload, previousPayload) {
       );
       attachTimer(payload.roundSummary.timeoutSeconds, {
         mode: 'normal',
-        key: `RoundSummary:${payload.roundSummary.roundId}`
+        key: `RoundSummary:${payload.roundSummary.roundId}`,
+        deadlineMs: payload.roundSummary.timeoutAtMs
       });
       showScreen('screen-round-summary');
       break;
@@ -413,7 +435,8 @@ function renderState(payload, previousPayload) {
       byId('game-summary-board').innerHTML = renderLeaderboard(payload.leaderboard || []);
       attachTimer(payload.gameSummary.timeoutSeconds, {
         mode: 'normal',
-        key: `GameSummary:${payload.gameSummary.gameId || ''}`
+        key: `GameSummary:${payload.gameSummary.gameId || ''}`,
+        deadlineMs: payload.gameSummary.timeoutAtMs
       });
       showScreen('screen-game-summary');
       break;
