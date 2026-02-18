@@ -236,6 +236,53 @@ void main() {
       expect(engine.submitVote(playerId: 'p1', entryId: 'missing'), isFalse);
     });
 
+    test('does not advance shared prompt until all active players vote', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(
+          config: const RoomConfig(
+            minPlayersToStart: 2,
+            setCount: 1,
+            promptsPerSet: 2,
+          ),
+        ),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(77),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
+      expect(engine.submitEntry(playerId: 'p2', text: 'OTTER'), isTrue);
+      expect(engine.snapshot.phase, isA<VoteInputPhase>());
+
+      var round = engine.snapshot.currentGame!.rounds.last;
+      var entryP1 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p1');
+      var entryP2 = round.entries.firstWhere((e) => e.ownerPlayerId == 'p2');
+
+      var phaseBefore = engine.snapshot.phase as VoteInputPhase;
+      expect(phaseBefore.promptText, 'Cutest');
+
+      expect(engine.submitVote(playerId: 'p1', entryId: entryP2.entryId), isTrue);
+      var phaseAfterOneVote = engine.snapshot.phase as VoteInputPhase;
+      expect(phaseAfterOneVote.promptText, 'Cutest');
+
+      expect(engine.submitVote(playerId: 'p2', entryId: entryP1.entryId), isTrue);
+      var phaseAfterBothVoted = engine.snapshot.phase as VoteInputPhase;
+      expect(phaseAfterBothVoted.promptText, 'Bravest');
+    });
+
     test('rejects self vote when config disallows it and >2 entries remain',
         () {
       var machine = RoomStateMachine(

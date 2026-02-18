@@ -97,6 +97,18 @@ categories:
 ''');
 }
 
+Map<String, dynamic> _decode(dynamic raw) {
+  return jsonDecode(raw as String) as Map<String, dynamic>;
+}
+
+List<Map<String, dynamic>> _statePayloads(_Sink sink) {
+  return sink.sent
+      .map(_decode)
+      .where((e) => e['event'] == 'state')
+      .map((e) => e['payload'] as Map<String, dynamic>)
+      .toList(growable: false);
+}
+
 void _submitRound(RoomRuntime room, String p1, String p2, String p3) {
   expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);
   expect(room.stateMachine.snapshot.phase.phase, 'EntryInput');
@@ -173,7 +185,34 @@ void main() {
     expect(room.stateMachine.snapshot.phase.phase, 'RoundIntro');
 
     _submitRound(room, p1, p2, p3);
+    var roundScore = room.stateMachine.snapshot.currentGame!.scoreboard[p3] ?? 0;
+    expect(roundScore, 0);
+    var pointsAfterRound1 = room.stateMachine
+            .snapshot.currentGame!.rounds.last.roundPointsByPlayerPending[p3] ??
+        0;
+    expect(pointsAfterRound1, 0);
+    var roundSummaryPayloadsAfterR1 = _statePayloads(c1.testSink)
+        .where((p) => p['phase'] == 'RoundSummary')
+        .toList();
+    expect(roundSummaryPayloadsAfterR1.isNotEmpty, isTrue);
+    var roundSummary1 = roundSummaryPayloadsAfterR1.last;
+    var superlativeResults1 =
+        roundSummary1['roundSummary']['superlativeResults'] as List<dynamic>;
+    expect(superlativeResults1.isNotEmpty, isTrue);
+    for (var result in superlativeResults1) {
+      var topEntries = result['topEntries'] as List<dynamic>;
+      expect(topEntries.length <= 3, isTrue);
+      for (var row in topEntries) {
+        expect(row['voteCount'] > 0, isTrue);
+        expect(row['entryText'], isNotEmpty);
+        expect(row['ownerDisplayName'], isNotEmpty);
+      }
+    }
     expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);
+    var scoreAfterRound1Advance =
+        room.stateMachine.snapshot.currentGame!.scoreboard[p3] ?? 0;
+    var config = room.stateMachine.snapshot.config;
+    expect(scoreAfterRound1Advance, config.setCount * config.promptsPerSet * 1000);
 
     _submitRound(room, p1, p2, p3);
     expect(room.handleEvent(playerId: p1, event: const AdvanceEvent()), isTrue);
@@ -184,15 +223,13 @@ void main() {
     expect(room.stateMachine.snapshot.phase.phase, 'GameSummary');
 
     var score = room.stateMachine.snapshot.currentGame!.scoreboard[p3];
-    var config = room.stateMachine.snapshot.config;
     var expectedScore =
         config.roundCount * config.setCount * config.promptsPerSet * 1000;
     expect(score, expectedScore);
 
     // Display receives state envelopes.
     expect(d1.testSink.sent.isNotEmpty, isTrue);
-    var last =
-        jsonDecode(d1.testSink.sent.last as String) as Map<String, dynamic>;
+    var last = _decode(d1.testSink.sent.last);
     expect(last['event'], 'state');
     expect((last['payload'] as Map<String, dynamic>)['role'], 'display');
   });

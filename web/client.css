@@ -40,18 +40,24 @@ body {
   margin-top: 6px;
 }
 
-#header-phase {
-  text-align: center;
-  margin-top: 4px;
-  font-weight: 700;
+#header-timer {
+  margin-top: 8px;
 }
 
-#header-timer {
-  text-align: center;
-  font-size: 24px;
-  font-weight: 800;
-  margin-top: 4px;
-  min-height: 30px;
+.timer-shell {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(242, 248, 245, 0.26);
+  overflow: hidden;
+}
+
+.timer-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #8de7be 0%, #d8ffe9 100%);
+  transition: width 1s linear;
 }
 
 #app {
@@ -158,12 +164,6 @@ button.secondary {
   border-color: #3d8b6a;
 }
 
-.vote-owner {
-  float: right;
-  color: #4b5f56;
-  font-size: 14px;
-}
-
 .note {
   color: var(--muted);
   font-size: 15px;
@@ -185,6 +185,10 @@ button.secondary {
   max-width: 900px;
   margin: 0 auto;
   padding: 8px 12px 20px 12px;
+}
+
+#logout {
+  display: none;
 }
 
 .display-mode {

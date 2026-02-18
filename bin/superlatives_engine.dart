@@ -397,8 +397,13 @@ class GameEngine {
     var updatedVotesMap = Map<String, String>.from(phase.votesByPlayer);
     updatedVotesMap[playerId] = entryId;
 
-    var displayPromptIndex =
-        _currentDisplayPromptIndex(updatedPromptIndexByPlayer, phase.setSuperlatives.length);
+    var displayPromptIndex = _currentDisplayPromptIndex(
+      promptIndexByPlayer: updatedPromptIndexByPlayer,
+      promptCount: phase.setSuperlatives.length,
+      activePlayerIds: snapshot.activePlayerSessions
+          .map((session) => session.playerId)
+          .toList(growable: false),
+    );
     var displayPrompt = phase.setSuperlatives[displayPromptIndex];
 
     stateMachine.snapshot = snapshot.copyWith(
@@ -789,16 +794,28 @@ class GameEngine {
     return 'e_${roundId}_${playerId}_$_entrySeq';
   }
 
-  int _currentDisplayPromptIndex(
-    Map<String, int> promptIndexByPlayer,
-    int promptCount,
-  ) {
+  int _currentDisplayPromptIndex({
+    required Map<String, int> promptIndexByPlayer,
+    required int promptCount,
+    required List<String> activePlayerIds,
+  }) {
     var min = promptCount;
-    for (var value in promptIndexByPlayer.values) {
-      if (value < min) {
-        min = value;
+
+    if (activePlayerIds.isEmpty) {
+      for (var value in promptIndexByPlayer.values) {
+        if (value < min) {
+          min = value;
+        }
+      }
+    } else {
+      for (var playerId in activePlayerIds) {
+        var value = promptIndexByPlayer[playerId] ?? 0;
+        if (value < min) {
+          min = value;
+        }
       }
     }
+
     if (min >= promptCount) {
       return promptCount - 1;
     }

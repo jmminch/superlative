@@ -173,9 +173,41 @@ void main() {
 
       var round = room.stateMachine.snapshot.currentGame!.rounds.last;
       var p3Entry = round.entries.firstWhere((e) => e.ownerPlayerId == p3Id);
+      var votePhase = room.stateMachine.snapshot.phase as VoteInputPhase;
+      var firstPromptText = votePhase.setSuperlatives.first.promptText;
+      var secondPromptText = votePhase.setSuperlatives[1].promptText;
 
       var promptsPerSet = room.stateMachine.snapshot.config.promptsPerSet;
-      for (var promptIndex = 0; promptIndex < promptsPerSet; promptIndex++) {
+      expect(
+        room.handleEvent(playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),
+        isTrue,
+      );
+
+      var p1AfterP2Vote = _decodeEnvelope(p1.testSink.sent.last);
+      var p2AfterP2Vote = _decodeEnvelope(p2.testSink.sent.last);
+      var p1PayloadAfterP2Vote =
+          p1AfterP2Vote['payload'] as Map<String, dynamic>;
+      var p2PayloadAfterP2Vote =
+          p2AfterP2Vote['payload'] as Map<String, dynamic>;
+      expect(p1PayloadAfterP2Vote['phase'], 'VoteInput');
+      expect(p2PayloadAfterP2Vote['phase'], 'VoteInput');
+      expect(p1PayloadAfterP2Vote['vote']['promptText'], firstPromptText);
+      expect(p2PayloadAfterP2Vote['vote']['promptText'], secondPromptText);
+      expect(
+          p1PayloadAfterP2Vote['round']['currentPromptIndexForYou'], equals(0));
+      expect(
+          p2PayloadAfterP2Vote['round']['currentPromptIndexForYou'], equals(1));
+
+      expect(
+        room.handleEvent(playerId: hostId, event: SubmitVoteEvent(p3Entry.entryId)),
+        isTrue,
+      );
+      expect(
+        room.handleEvent(playerId: p3Id, event: SubmitVoteEvent(p3Entry.entryId)),
+        isTrue,
+      );
+
+      for (var promptIndex = 1; promptIndex < promptsPerSet; promptIndex++) {
         expect(
           room.handleEvent(
               playerId: p2Id, event: SubmitVoteEvent(p3Entry.entryId)),

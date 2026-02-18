@@ -4,6 +4,10 @@ let loggedIn = false;
 let reconnectDelayMs = 800;
 let currentPayload = null;
 let timerId = null;
+let timerMode = 'none';
+let timerStartSeconds = 0;
+let timerSeconds = 0;
+let timerKey = null;
 
 function byId(id) {
   return document.getElementById(id);
@@ -114,8 +118,9 @@ function handleMessage(event) {
   }
 
   if (envelope.event === 'state') {
+    let previous = currentPayload;
     currentPayload = envelope.payload;
-    renderState(envelope.payload);
+    renderState(envelope.payload, previous);
   }
 }
 
@@ -131,6 +136,11 @@ function showScreen(id) {
   }
 
   byId(id).classList.add('active');
+  let inRoomScreen = id !== 'screen-login' && id !== 'screen-error';
+  let logoutButton = byId('logout');
+  if (logoutButton) {
+    logoutButton.style.display = loggedIn && inRoomScreen ? 'inline-block' : 'none';
+  }
 }
 
 function clearTimer() {
@@ -138,26 +148,101 @@ function clearTimer() {
     clearInterval(timerId);
     timerId = null;
   }
+  timerMode = 'none';
+  timerStartSeconds = 0;
+  timerSeconds = 0;
+  timerKey = null;
 }
 
-function attachTimer(initialSeconds) {
-  clearTimer();
+function setTimerBarWidth(percent, immediate = false) {
+  let clamped = Math.max(0, Math.min(100, percent));
+  let bar = byId('header-timer-bar');
+  if (bar) {
+    if (immediate) {
+      bar.style.transition = 'none';
+    }
+    bar.style.width = `${clamped}%`;
+    if (immediate) {
+      // Force reflow so the no-transition width write is committed.
+      bar.offsetWidth;
+      bar.style.transition = '';
+    }
+  }
+}
+
+function attachTimer(initialSeconds, options = {}) {
+  let mode = options.mode || 'normal';
+  let nextKey = options.key || null;
 
   if (initialSeconds === null || initialSeconds === undefined) {
-    byId('header-timer').textContent = '';
+    clearTimer();
+    setTimerBarWidth(0);
     return;
   }
 
-  let seconds = Math.max(0, Number(initialSeconds) || 0);
-  byId('header-timer').textContent = `:${String(seconds).padStart(2, '0')}`;
+  let nextSeconds = Math.max(0, Number(initialSeconds) || 0);
+  let restart = !timerId || timerMode !== mode || timerKey !== nextKey;
 
-  timerId = setInterval(function () {
-    seconds = Math.max(0, seconds - 1);
-    byId('header-timer').textContent = `:${String(seconds).padStart(2, '0')}`;
-    if (seconds <= 0) {
-      clearTimer();
+  if (mode === 'entry-extend-empty' && timerId) {
+    timerKey = nextKey;
+    timerSeconds = nextSeconds;
+    setTimerBarWidth(0);
+    return;
+  }
+
+  if (!restart && timerId) {
+    timerSeconds = Math.min(timerSeconds, nextSeconds);
+    return;
+  }
+
+  if (timerId && restart) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+
+  timerMode = mode;
+  timerKey = nextKey;
+  timerStartSeconds = Math.max(1, nextSeconds);
+  timerSeconds = nextSeconds;
+
+  let update = function () {
+    if (timerMode === 'entry-extend-empty') {
+      setTimerBarWidth(0);
+      return;
     }
-  }, 1000);
+    let percent = (timerSeconds / timerStartSeconds) * 100;
+    setTimerBarWidth(percent);
+  };
+
+  update();
+  setTimerBarWidth((timerSeconds / timerStartSeconds) * 100, true);
+
+  if (!timerId) {
+    timerId = setInterval(function () {
+      timerSeconds = Math.max(0, timerSeconds - 1);
+      update();
+      if (timerSeconds <= 0) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    }, 1000);
+  }
+}
+
+function entryTimerMode(payload) {
+  if (!currentPayload || currentPayload.phase !== 'EntryInput') {
+    return 'normal';
+  }
+  let prev = currentPayload.round || {};
+  let curr = payload.round || {};
+  if (
+    typeof prev.timeoutSeconds === 'number' &&
+    typeof curr.timeoutSeconds === 'number' &&
+    curr.timeoutSeconds > prev.timeoutSeconds
+  ) {
+    return 'entry-extend-empty';
+  }
+  return 'normal';
 }
 
 function renderPlayers(players) {
@@ -179,11 +264,25 @@ function renderLeaderboard(board) {
   return html;
 }
 
-function renderEntries(entries) {
+function renderRoundSummary(rows, superlativeResults) {
   let html = '';
-  entries.forEach(function (e) {
-    html += `<div class="card"><strong>${e.text}</strong><br><span class="muted">by ${e.ownerDisplayName}</span></div>`;
+  rows.forEach(function (r) {
+    let entryText = r.entryText || '-';
+    html += `<div class="card"><strong>${r.displayName}</strong><span class="float">${r.totalScore} total</span><br><span class="muted">Entry: ${entryText}</span><br><span class="muted">Round points: ${r.pointsThisRound}</span></div>`;
   });
+
+  html += '<h3>Superlative Winners</h3>';
+  (superlativeResults || []).forEach(function (result) {
+    let top = result.topEntries || [];
+    let lines = top.map(function (row) {
+      return `<div class="muted">#${row.rank} ${row.entryText} - ${row.ownerDisplayName} - ${row.voteCount} votes</div>`;
+    }).join('');
+    if (!lines) {
+      lines = '<div class="muted">No votes recorded.</div>';
+    }
+    html += `<div class="card"><strong>${result.promptText}</strong><br>${lines}</div>`;
+  });
+
   return html;
 }
 
@@ -192,31 +291,39 @@ function renderVoteButtons(entries, locked, selectedEntryId) {
   entries.forEach(function (e) {
     let selected = selectedEntryId === e.entryId ? ' selected' : '';
     let disabled = locked ? ' disabled' : '';
-    html += `<button class="vote-button${selected}" data-entry-id="${e.entryId}"${disabled}>${e.text}<span class="vote-owner">${e.ownerDisplayName}</span></button>`;
+    html += `<button class="vote-button${selected}" data-entry-id="${e.entryId}"${disabled}>${e.text}</button>`;
   });
   return html;
 }
 
-function renderReveal(entries, results) {
+function renderReveal(entries, results, roundPointsByEntry) {
   let html = '';
   entries.forEach(function (e) {
     let votes = (results.voteCountByEntry && results.voteCountByEntry[e.entryId]) || 0;
-    let points = (results.pointsByEntry && results.pointsByEntry[e.entryId]) || 0;
-    html += `<div class="card"><strong>${e.text}</strong><br><span class="muted">${votes} votes • +${points} points to ${e.ownerDisplayName}</span></div>`;
+    let roundPoints = (roundPointsByEntry && roundPointsByEntry[e.entryId]) || 0;
+    html += `<div class="card"><strong>${e.text}</strong><br><span class="muted">${votes} votes this prompt • ${roundPoints} round points total</span></div>`;
   });
   return html;
 }
 
 function updateHeader(payload) {
-  byId('header-room').textContent = `Room: ${payload.room}`;
-  byId('header-name').textContent = payload.displayName || '-';
-  byId('header-phase').textContent = `Phase: ${payload.phase}`;
+  let roomNode = byId('header-room');
+  if (roomNode) {
+    roomNode.textContent = `Room: ${payload.room}`;
+  }
+
+  let nameNode = byId('header-name');
+  if (nameNode) {
+    nameNode.textContent = payload.displayName || '-';
+  }
 }
 
-function renderState(payload) {
+function renderState(payload, previousPayload) {
+  currentPayload = previousPayload;
   updateHeader(payload);
+  currentPayload = payload;
 
-  byId('lobby-start').disabled = !(payload.host && payload.lobby && payload.lobby.canStart);
+  byId('lobby-start').disabled = !(payload.lobby && payload.lobby.canStart);
   byId('round-advance').style.display = payload.host ? 'block' : 'none';
   byId('reveal-advance').style.display = payload.host ? 'block' : 'none';
   byId('round-summary-advance').style.display = payload.host ? 'block' : 'none';
@@ -239,23 +346,27 @@ function renderState(payload) {
       byId('round-superlatives').innerHTML = (payload.round.superlatives || []).map(
         (s) => `<div class="card">${s.promptText}</div>`
       ).join('');
-      attachTimer(payload.round.timeoutSeconds);
+      attachTimer(payload.round.timeoutSeconds, {
+        mode: 'normal',
+        key: `RoundIntro:${payload.round.roundId}`
+      });
       showScreen('screen-round-intro');
       break;
 
     case 'EntryInput':
-      byId('entry-category').textContent = `Category: ${payload.round.categoryLabel}`;
-      byId('entry-list').innerHTML = renderEntries(payload.round.entries || []);
+      byId('entry-category').textContent = `Enter a ${payload.round.categoryLabel}`;
       byId('entry-submit').disabled = !!payload.youSubmitted;
       byId('entry-note').textContent = payload.youSubmitted
-        ? 'Entry submitted. Waiting for others.'
-        : 'Submit one entry for this category.';
-      attachTimer(payload.round.timeoutSeconds);
+        ? 'Submitted. Waiting for others.'
+        : '';
+      attachTimer(payload.round.timeoutSeconds, {
+        mode: entryTimerMode(payload),
+        key: `EntryInput:${payload.round.roundId}`
+      });
       showScreen('screen-entry');
       break;
 
     case 'VoteInput':
-      byId('vote-title').textContent = `Vote ${Number(payload.vote.voteIndex || 0) + 1}`;
       byId('vote-prompt').textContent = payload.vote.promptText;
       byId('vote-note').textContent = payload.youVoted
         ? 'Vote locked in. Waiting for others.'
@@ -265,7 +376,10 @@ function renderState(payload) {
         !!payload.youVoted,
         payload.yourVoteEntryId || null
       );
-      attachTimer(payload.vote.timeoutSeconds);
+      attachTimer(payload.vote.timeoutSeconds, {
+        mode: 'normal',
+        key: `VoteInput:${payload.vote.roundId}:${payload.round.currentSetIndex}`
+      });
       showScreen('screen-vote');
       break;
 
@@ -273,21 +387,34 @@ function renderState(payload) {
       byId('reveal-prompt').textContent = payload.reveal.promptText;
       byId('reveal-list').innerHTML = renderReveal(
         payload.reveal.entries || [],
-        payload.reveal.results || {}
+        payload.reveal.results || {},
+        payload.reveal.roundPointsByEntry || {}
       );
-      attachTimer(payload.reveal.timeoutSeconds);
+      attachTimer(payload.reveal.timeoutSeconds, {
+        mode: 'normal',
+        key: `VoteReveal:${payload.reveal.roundId}:${payload.reveal.setIndex}`
+      });
       showScreen('screen-reveal');
       break;
 
     case 'RoundSummary':
-      byId('round-summary-board').innerHTML = renderLeaderboard(payload.leaderboard || []);
-      attachTimer(payload.roundSummary.timeoutSeconds);
+      byId('round-summary-board').innerHTML = renderRoundSummary(
+        payload.roundSummary.playerRoundResults || [],
+        payload.roundSummary.superlativeResults || []
+      );
+      attachTimer(payload.roundSummary.timeoutSeconds, {
+        mode: 'normal',
+        key: `RoundSummary:${payload.roundSummary.roundId}`
+      });
       showScreen('screen-round-summary');
       break;
 
     case 'GameSummary':
       byId('game-summary-board').innerHTML = renderLeaderboard(payload.leaderboard || []);
-      attachTimer(payload.gameSummary.timeoutSeconds);
+      attachTimer(payload.gameSummary.timeoutSeconds, {
+        mode: 'normal',
+        key: `GameSummary:${payload.gameSummary.gameId || ''}`
+      });
       showScreen('screen-game-summary');
       break;
 
@@ -348,6 +475,12 @@ function setupHandlers() {
     byId('entry-text').value = '';
   };
 
+  byId('entry-text').onkeyup = function (event) {
+    if (event.key === 'Enter' && !byId('entry-submit').disabled) {
+      byId('entry-submit').click();
+    }
+  };
+
   byId('vote-list').onclick = function (event) {
     let target = event.target.closest('button[data-entry-id]');
     if (!target) {
@@ -363,6 +496,8 @@ function setupHandlers() {
 
   byId('logout').onclick = function () {
     reconnect = false;
+    loggedIn = false;
+    currentPayload = null;
     send({ event: 'logout' });
     if (ws) {
       ws.close();

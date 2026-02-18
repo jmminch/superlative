@@ -142,29 +142,78 @@ Tests:
 Exit criteria:
 - No owner identity leaks before round summary.
 
-## Phase 8: Player UI Redesign and Interaction Changes
+## Phase 8A: Timer and Shell UI
 Deliverables:
-- `web/player.js`, `web/index.html`, `web/client.css` implement requested usability/UI behavior.
+- Header/footer shell updated for cleaner in-room behavior.
+- Progress-bar timer replaces numeric countdown text.
 
 Tasks:
 - Remove phase label display.
 - Hide logout/leave when not in-room.
 - Implement unobtrusive progress bar timer.
-- Keep timer bar empty during entry timeout extensions.
+- Keep timer bar visually empty when entry timeout is repeatedly extended.
+
+Tests:
+- Manual validation across `RoundIntro`, `EntryInput`, `VoteInput`, `VoteReveal`, `RoundSummary`, `GameSummary`.
+
+Exit criteria:
+- No visible phase text.
+- Leave button hidden before login and after logout/error.
+- Timer renders as progress bar and does not refill during entry extension loops.
+
+## Phase 8B: Entry UX
+Deliverables:
+- Entry screen simplified to short prompt + input + submit flow.
+
+Tasks:
 - Simplify entry screen copy and layout.
 - Add Enter-to-submit on entry input.
 - Hide entries until entry phase closes.
-- Remove vote number heading, update prompt text format.
-- Hide player attribution until round summary.
-- Show reveal as cumulative round points by entry.
-- Show round summary rows with total score, entry text, points this round.
 
 Tests:
+- Manual validation for locked/unlocked submit state and keyboard submit behavior.
+
+Exit criteria:
+- Entry view matches simplified wording and interaction behavior.
+
+## Phase 8C: Vote/Reveal Privacy UX
+Deliverables:
+- Voting and reveal presentation aligned to set flow and privacy rules.
+
+Tasks:
+- Remove vote number heading and use plain superlative question wording.
+- Hide player attribution until round summary.
+- Show reveal as cumulative round points per entry.
+
+Tests:
+- Manual validation that no owner identities leak during vote/reveal.
+
+Exit criteria:
+- Vote/reveal screens show anonymous entries and cumulative round-point messaging.
+
+## Phase 8D: Round Summary UI
+Deliverables:
+- Round summary uses `roundSummary.playerRoundResults` detail rows.
+
+Tasks:
+- Show total score, submitted entry text, and points earned this round per player.
+
+Tests:
+- Manual validation for eliminated and non-eliminated entries.
+
+Exit criteria:
+- Summary includes all per-player round detail fields from projector contract.
+
+## Phase 8E: UI Hardening and QA
+Deliverables:
+- Final UI pass with reconnect/timer behavior checks and regressions addressed.
+
+Tasks:
 - Add/update UI-focused assertions in runtime integration tests where feasible.
 - Manual validation with 3+ browser sessions.
 
 Exit criteria:
-- All UX bullets in next-steps doc verified manually.
+- All UI bullets in next-steps doc verified manually end-to-end.
 
 ## Phase 9: Integration Hardening and Regression Sweep
 Deliverables:

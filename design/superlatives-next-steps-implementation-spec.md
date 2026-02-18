@@ -125,9 +125,14 @@ Tie handling at elimination cutoff:
   - `round.setPromptCount`
   - `round.currentPromptIndexForYou` (player only)
   - `round.setTimeoutSeconds`
+  - `vote.promptText`/`vote.superlativeId` projected per-player from that player's current prompt index during `VoteInput`.
   - `round.entries` should omit `ownerDisplayName` until round summary.
   - `reveal.roundPointsByEntry` cumulative map.
   - `roundSummary.playerRoundResults[]` with `{ playerId, displayName, totalScore, entryText, pointsThisRound }`.
+  - `roundSummary.superlativeResults[]` with:
+    - `{ superlativeId, promptText, topEntries[] }`
+    - each `topEntries` row: `{ rank, entryId, entryText, ownerDisplayName, voteCount }`
+    - max 3 rows, zero-vote entries excluded, deterministic tie-break by `entryId`.
 - Keep existing envelope format (`protocolVersion`, `event`, `payload`) unless intentionally versioned.
 
 ## 8. Testing Requirements

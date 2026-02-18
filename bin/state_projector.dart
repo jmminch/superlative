@@ -107,11 +107,42 @@ class StateProjector {
 
     if (phase is VoteInputPhase) {
       var setPromptCount = phase.setSuperlatives.length;
+      if (setPromptCount == 0) {
+        payload['vote'] = {
+          'roundId': phase.roundId,
+          'voteIndex': phase.voteIndex,
+          'superlativeId': phase.superlativeId,
+          'promptText': phase.promptText,
+          'entries': _entriesView(snapshot, round, includeOwner: false),
+          'timeoutSeconds': _remainingSeconds(phase.endsAt),
+        };
+        payload['round'] = {
+          'roundId': phase.roundId,
+          'currentSetIndex': phase.setIndex,
+          'setPromptCount': 0,
+          'setTimeoutSeconds': _remainingSeconds(phase.endsAt),
+        };
+        if (role == 'player' && viewer != null) {
+          payload['youVoted'] = true;
+          payload['yourVoteEntryId'] = null;
+          payload['round']['currentPromptIndexForYou'] = 0;
+        }
+        return;
+      }
+      var promptIndex = _projectedPromptIndex(
+        phase: phase,
+        snapshot: snapshot,
+        viewer: viewer,
+        role: role,
+      );
+      var isDone = promptIndex >= setPromptCount;
+      var activePromptIndex = isDone ? setPromptCount - 1 : promptIndex;
+      var currentPrompt = phase.setSuperlatives[activePromptIndex];
       payload['vote'] = {
         'roundId': phase.roundId,
         'voteIndex': phase.voteIndex,
-        'superlativeId': phase.superlativeId,
-        'promptText': phase.promptText,
+        'superlativeId': currentPrompt.superlativeId,
+        'promptText': currentPrompt.promptText,
         'entries': _entriesView(snapshot, round, includeOwner: false),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
       };
@@ -123,9 +154,15 @@ class StateProjector {
       };
 
       if (role == 'player' && viewer != null) {
-        var promptIndex = phase.promptIndexByPlayer[viewer.playerId] ?? 0;
-        payload['youVoted'] = promptIndex >= setPromptCount;
-        payload['yourVoteEntryId'] = phase.votesByPlayer[viewer.playerId];
+        payload['youVoted'] = isDone;
+        payload['yourVoteEntryId'] = isDone
+            ? null
+            : _voteSelectionForPrompt(
+                round: round,
+                setIndex: phase.setIndex,
+                promptIndex: activePromptIndex,
+                playerId: viewer.playerId,
+              );
         payload['round']['currentPromptIndexForYou'] = promptIndex;
       }
       return;
@@ -155,6 +192,7 @@ class StateProjector {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'playerRoundResults': _roundSummaryRows(snapshot, round),
+        'superlativeResults': _roundSummarySuperlativeResults(snapshot, round),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
       };
       return;
@@ -271,6 +309,46 @@ class StateProjector {
     return (millis + 999) ~/ 1000;
   }
 
+  int _projectedPromptIndex({
+    required VoteInputPhase phase,
+    required SuperlativesRoomSnapshot snapshot,
+    required PlayerSession? viewer,
+    required String role,
+  }) {
+    var setPromptCount = phase.setSuperlatives.length;
+    if (role == 'player' && viewer != null) {
+      return phase.promptIndexByPlayer[viewer.playerId] ?? 0;
+    }
+
+    var min = setPromptCount;
+    for (var player in snapshot.activePlayerSessions) {
+      var value = phase.promptIndexByPlayer[player.playerId] ?? 0;
+      if (value < min) {
+        min = value;
+      }
+    }
+    if (min == setPromptCount) {
+      return setPromptCount - 1;
+    }
+    return min;
+  }
+
+  String? _voteSelectionForPrompt({
+    required RoundInstance? round,
+    required int setIndex,
+    required int promptIndex,
+    required String playerId,
+  }) {
+    if (round == null ||
+        setIndex < 0 ||
+        setIndex >= round.voteSets.length ||
+        promptIndex < 0 ||
+        promptIndex >= round.voteSets[setIndex].prompts.length) {
+      return null;
+    }
+    return round.voteSets[setIndex].prompts[promptIndex].votesByPlayer[playerId];
+  }
+
   List<Map<String, dynamic>> _roundSummaryRows(
     SuperlativesRoomSnapshot snapshot,
     RoundInstance? round,
@@ -283,17 +361,18 @@ class StateProjector {
     for (var entry in round.entries) {
       entryByOwner[entry.ownerPlayerId] = entry;
     }
+    var roundPointsByPlayer = _roundPointsByPlayer(round);
 
     var rows = snapshot.players.values
         .where((p) => p.role == SessionRole.player)
         .map((p) {
-      var score = snapshot.currentGame?.scoreboard[p.playerId] ?? 0;
+      var scoreBeforeRound = snapshot.currentGame?.scoreboard[p.playerId] ?? 0;
       var entry = entryByOwner[p.playerId];
-      var pointsThisRound = round.roundPointsByPlayerPending[p.playerId] ?? 0;
+      var pointsThisRound = roundPointsByPlayer[p.playerId] ?? 0;
       return <String, dynamic>{
         'playerId': p.playerId,
         'displayName': p.displayName,
-        'totalScore': score,
+        'totalScore': scoreBeforeRound + pointsThisRound,
         'entryText': entry?.textOriginal,
         'pointsThisRound': pointsThisRound,
       };
@@ -308,5 +387,74 @@ class StateProjector {
     });
 
     return rows;
+  }
+
+  List<Map<String, dynamic>> _roundSummarySuperlativeResults(
+    SuperlativesRoomSnapshot snapshot,
+    RoundInstance? round,
+  ) {
+    if (round == null) {
+      return const [];
+    }
+
+    var rows = <Map<String, dynamic>>[];
+    for (var set in round.voteSets) {
+      for (var prompt in set.prompts) {
+        var voteCountByEntry = <String, int>{};
+        for (var entryId in prompt.votesByPlayer.values) {
+          voteCountByEntry[entryId] = (voteCountByEntry[entryId] ?? 0) + 1;
+        }
+
+        var ranked = round.entries
+            .map((entry) => {
+                  'entryId': entry.entryId,
+                  'entryText': entry.textOriginal,
+                  'ownerDisplayName':
+                      snapshot.players[entry.ownerPlayerId]?.displayName ??
+                          entry.ownerPlayerId,
+                  'voteCount': voteCountByEntry[entry.entryId] ?? 0,
+                })
+            .where((row) => (row['voteCount'] as int) > 0)
+            .toList();
+
+        ranked.sort((a, b) {
+          var countCmp = (b['voteCount'] as int).compareTo(a['voteCount'] as int);
+          if (countCmp != 0) {
+            return countCmp;
+          }
+          return (a['entryId'] as String).compareTo(b['entryId'] as String);
+        });
+
+        var top = ranked.take(3).toList(growable: false);
+        for (var i = 0; i < top.length; i++) {
+          top[i]['rank'] = i + 1;
+        }
+
+        rows.add({
+          'superlativeId': prompt.superlativeId,
+          'promptText': prompt.promptText,
+          'topEntries': top,
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  Map<String, int> _roundPointsByPlayer(RoundInstance round) {
+    var entryOwnerById = <String, String>{};
+    for (var entry in round.entries) {
+      entryOwnerById[entry.entryId] = entry.ownerPlayerId;
+    }
+
+    var pointsByPlayer = <String, int>{};
+    for (var entry in round.roundPointsByEntry.entries) {
+      var owner = entryOwnerById[entry.key];
+      if (owner == null) {
+        continue;
+      }
+      pointsByPlayer[owner] = (pointsByPlayer[owner] ?? 0) + entry.value;
+    }
+    return pointsByPlayer;
   }
 }
