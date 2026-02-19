@@ -447,6 +447,14 @@ body.display-client .progress-card {
   border-color: rgba(191, 239, 215, 0.24);
 }
 
+body.display-client #entry-player-progress .progress-card {
+  animation: none;
+}
+
+body.display-client #vote-player-progress .progress-card {
+  animation: none;
+}
+
 body.display-client .progress-card.is-complete {
   opacity: 1;
   border-color: rgba(127, 240, 194, 0.8);
