@@ -126,6 +126,12 @@ body.display-client .card-list {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+body.display-client #lobby-player-list {
+  grid-template-columns: repeat(4, 390px);
+  grid-auto-flow: row;
+  justify-content: start;
+}
+
 body.display-client .card {
   border-radius: 14px;
   border: 1px solid rgba(191, 239, 215, 0.42);
@@ -579,6 +585,10 @@ body.display-client .podium-score {
 @media (max-width: 980px) {
   body.display-client #app {
     padding: 14px;
+  }
+
+  body.display-client #lobby-player-list {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
   body.display-client .card-list {
