@@ -379,6 +379,18 @@ body.display-client #screen-round-intro {
   text-align: center;
 }
 
+body.display-client #screen-round-intro #round-category {
+  margin-bottom: 30px;
+}
+
+body.display-client #round-intro-instruction {
+  margin: 0 0 30px;
+  font-size: clamp(22px, 2.1vw, 34px);
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--display-muted);
+}
+
 body.display-client #round-title {
   margin: 0 0 8px;
   font-size: clamp(24px, 2.1vw, 34px);
