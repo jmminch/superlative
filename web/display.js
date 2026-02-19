@@ -309,6 +309,31 @@ function normalizeStateLabel(state) {
   return String(state).replace(/_/g, ' ').toUpperCase();
 }
 
+function canonicalizeRenderPayload(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeRenderPayload);
+  }
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  let out = {};
+  Object.keys(value).sort().forEach(function (key) {
+    if (key === 'updatedAt' || key === 'timeoutSeconds' || key === 'timeoutAtMs') {
+      return;
+    }
+    out[key] = canonicalizeRenderPayload(value[key]);
+  });
+  return out;
+}
+
+function defaultRenderKey(payload) {
+  return JSON.stringify(canonicalizeRenderPayload(payload));
+}
+
 function setPhaseTheme(phaseName) {
   let body = document.body;
   body.classList.remove('phase-lobby', 'phase-in-game', 'phase-game-summary');
@@ -480,28 +505,86 @@ function renderBoard(rows) {
   return html;
 }
 
-function renderProgressCards(players, completedPlayerIds, indexDelayMs) {
+function promptStripKey(prompts) {
+  return JSON.stringify((prompts || []).slice(0, 3).map(function (s) {
+    return `${s.superlativeId || ''}:${s.promptText || ''}`;
+  }));
+}
+
+function renderPromptStripIfChanged(containerId, prompts) {
+  let node = byId(containerId);
+  if (!node) {
+    return;
+  }
+  let key = promptStripKey(prompts);
+  if (node.dataset.promptKey === key) {
+    return;
+  }
+  node.innerHTML = renderPromptStrip(prompts || []);
+  node.dataset.promptKey = key;
+}
+
+function reconcileProgressCards(containerId, players, completedPlayerIds) {
+  let container = byId(containerId);
+  if (!container) {
+    return;
+  }
+
   let completed = new Set(completedPlayerIds || []);
-  let html = '';
-  players.forEach(function (p, index) {
-    if (p.role !== 'player') {
-      return;
-    }
+  let activePlayers = (players || []).filter(function (p) {
+    return p.role === 'player';
+  });
+  let nextIds = new Set(activePlayers.map(function (p) { return p.playerId; }));
+  let existingCards = Array.from(container.querySelectorAll('.player-card[data-player-id]'));
+  let existingById = new Map(existingCards.map(function (node) {
+    return [node.dataset.playerId, node];
+  }));
+  let fragment = document.createDocumentFragment();
+
+  activePlayers.forEach(function (p) {
     let done = completed.has(p.playerId);
-    let initials = escapeHtml(initialsForName(p.displayName));
-    let doneClass = done ? ' is-complete' : ' is-pending';
+    let doneClass = done ? 'is-complete' : 'is-pending';
     let doneText = done ? 'READY' : 'WAITING';
-    html += `
-      <article class="card player-card progress-card${doneClass}" style="animation-delay:${index * indexDelayMs}ms">
-        <div class="player-avatar" aria-hidden="true">${initials}</div>
+    let node = existingById.get(p.playerId);
+
+    if (!node) {
+      node = document.createElement('article');
+      node.className = `card player-card progress-card ${doneClass}`;
+      node.dataset.playerId = p.playerId;
+      node.innerHTML = `
+        <div class="player-avatar" aria-hidden="true">${escapeHtml(initialsForName(p.displayName))}</div>
         <div class="player-meta">
           <strong class="player-name">${escapeHtml(p.displayName || '')}</strong>
           <span class="player-state">${doneText}</span>
         </div>
-      </article>
-    `;
+      `;
+    } else {
+      node.classList.remove('is-complete', 'is-pending');
+      node.classList.add(doneClass);
+      let avatarNode = node.querySelector('.player-avatar');
+      let nameNode = node.querySelector('.player-name');
+      let stateNode = node.querySelector('.player-state');
+      if (avatarNode) {
+        avatarNode.textContent = initialsForName(p.displayName);
+      }
+      if (nameNode) {
+        nameNode.textContent = p.displayName || '';
+      }
+      if (stateNode) {
+        stateNode.textContent = doneText;
+      }
+    }
+
+    fragment.appendChild(node);
   });
-  return html;
+
+  container.appendChild(fragment);
+
+  existingCards.forEach(function (node) {
+    if (!nextIds.has(node.dataset.playerId)) {
+      node.remove();
+    }
+  });
 }
 
 function renderPromptStrip(prompts) {
@@ -666,18 +749,24 @@ function applyState(payload) {
 function createPhaseController(config) {
   return {
     mount: function (payload) {
+      this.lastRenderKey = null;
       showScreen(config.screenId);
       if (config.onMount) {
         config.onMount(payload);
       }
     },
     update: function (payload) {
-      config.renderFn(payload);
+      let renderKey = (config.renderKeyFn || defaultRenderKey)(payload);
+      if (this.lastRenderKey !== renderKey) {
+        config.renderFn(payload);
+        this.lastRenderKey = renderKey;
+      }
       let timerSeconds = config.timerFn ? config.timerFn(payload) : null;
       let timerOptions = config.timerOptionsFn ? config.timerOptionsFn(payload) : {};
       attachTimer(timerSeconds, timerOptions);
     },
     unmount: function () {
+      this.lastRenderKey = null;
       clearTimer();
       if (config.onUnmount) {
         config.onUnmount();
@@ -789,7 +878,7 @@ function renderGameStarting(payload) {
 
 function renderRoundIntro(payload) {
   byId('round-title').textContent = `Round ${Number(payload.round.roundIndex || 0) + 1}`;
-  byId('round-category').textContent = `Category: ${payload.round.categoryLabel}`;
+  byId('round-category').textContent = `${payload.round.categoryLabel}`;
   byId('round-superlatives').innerHTML = renderPromptStrip(payload.round.superlatives || []);
 }
 
@@ -797,12 +886,12 @@ function renderEntryInput(payload) {
   let submitted = payload.round && payload.round.submittedPlayerIds
     ? payload.round.submittedPlayerIds
     : [];
-  byId('entry-category').textContent = `Enter something for: ${payload.round.categoryLabel}`;
-  byId('entry-superlatives').innerHTML = renderPromptStrip(payload.round.superlatives || []);
-  byId('entry-player-progress').innerHTML = renderProgressCards(
+  byId('entry-category').textContent = `${payload.round.categoryLabel}`;
+  renderPromptStripIfChanged('entry-superlatives', payload.round.superlatives || []);
+  reconcileProgressCards(
+    'entry-player-progress',
     payload.players || [],
-    submitted,
-    50
+    submitted
   );
 }
 
@@ -813,15 +902,15 @@ function renderVoteInput(payload) {
   let completed = payload.round && payload.round.completedPlayerIds
     ? payload.round.completedPlayerIds
     : [];
-  byId('vote-category').textContent = `Category: ${payload.round && payload.round.categoryLabel ? payload.round.categoryLabel : '-'}`;
-  byId('vote-prompt').textContent = payload.vote.promptText || '';
-  byId('vote-superlatives').innerHTML = renderPromptStrip(
+  byId('vote-category').textContent = `${payload.round && payload.round.categoryLabel ? payload.round.categoryLabel : '-'}`;
+  renderPromptStripIfChanged(
+    'vote-superlatives',
     payload.round && payload.round.setSuperlatives ? payload.round.setSuperlatives : []
   );
-  byId('vote-player-progress').innerHTML = renderProgressCards(
+  reconcileProgressCards(
+    'vote-player-progress',
     payload.players || [],
-    completed,
-    50
+    completed
   );
 }
 

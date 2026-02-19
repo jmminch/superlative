@@ -287,6 +287,10 @@ body.display-client #game-summary-board {
   overflow-y: auto;
 }
 
+body.display-client #round-summary-board {
+  grid-template-columns: 1fr;
+}
+
 body.display-client .reveal-stage-label {
   margin: 0 0 8px;
   font-size: 14px;
@@ -371,6 +375,29 @@ body.display-client .superlative-text {
 body.display-client #screen-game-starting {
   text-align: center;
   min-height: 42vh;
+}
+
+body.display-client #screen-round-intro {
+  text-align: center;
+}
+
+body.display-client #round-title {
+  margin: 0 0 8px;
+  font-size: clamp(24px, 2.1vw, 34px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.display-client #round-category,
+body.display-client #entry-category,
+body.display-client #vote-category {
+  margin: 0 0 16px;
+  font-size: clamp(38px, 4.8vw, 68px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--display-accent-strong);
 }
 
 body.display-client #game-starting-title {
