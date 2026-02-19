@@ -210,6 +210,10 @@ body.display-client .player-card {
   gap: 12px;
 }
 
+body.display-client #lobby-player-list .player-card:not(.player-enter):not(.player-exit) {
+  animation: none;
+}
+
 body.display-client .player-card.player-enter {
   animation: lobby-player-enter 320ms ease both;
 }
