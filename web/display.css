@@ -414,7 +414,6 @@ body.display-client #game-starting-title {
   margin-top: 6px;
   font-size: clamp(32px, 5vw, 66px);
   letter-spacing: 0.08em;
-  text-transform: lowercase;
 }
 
 body.display-client .game-starting-lines {
