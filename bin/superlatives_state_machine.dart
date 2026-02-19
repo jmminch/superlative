@@ -175,14 +175,16 @@ class RoomStateMachine {
       return false;
     }
 
+    var entryEndsAt =
+        _now().add(Duration(seconds: snapshot.config.entryInputSeconds));
     return transitionTo(
       EntryInputPhase(
         roundIndex: phase.roundIndex,
         roundId: phase.roundId,
         categoryLabel: phase.categoryLabel,
         superlatives: phase.superlatives,
-        endsAt:
-            _now().add(Duration(seconds: snapshot.config.entryInputSeconds)),
+        initialEndsAt: entryEndsAt,
+        endsAt: entryEndsAt,
         submittedPlayerIds: <String>{},
       ),
     );

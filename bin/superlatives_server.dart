@@ -722,6 +722,7 @@ class RoomRuntime {
         roundId: phase.roundId,
         categoryLabel: phase.categoryLabel,
         superlatives: phase.superlatives,
+        initialEndsAt: phase.initialEndsAt,
         endsAt: nextEndsAt,
         earliestVoteAt: phase.earliestVoteAt,
         submittedPlayerIds: phase.submittedPlayerIds,

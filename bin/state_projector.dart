@@ -109,8 +109,8 @@ class StateProjector {
         'superlatives': _superlativesList(phase.superlatives),
         // Player identities stay hidden until round summary.
         'entries': const [],
-        'timeoutSeconds': _remainingSeconds(phase.endsAt),
-        'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
+        'timeoutSeconds': _remainingSeconds(phase.initialEndsAt),
+        'timeoutAtMs': phase.initialEndsAt.millisecondsSinceEpoch,
       };
       if (role == 'display') {
         var submittedPlayerIds = phase.submittedPlayerIds.toList()..sort();

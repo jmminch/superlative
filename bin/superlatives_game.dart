@@ -328,6 +328,7 @@ class EntryInputPhase extends GamePhaseState {
   final String roundId;
   final String categoryLabel;
   final List<SuperlativePrompt> superlatives;
+  final DateTime initialEndsAt;
   final DateTime endsAt;
   final DateTime? earliestVoteAt;
   final Set<String> submittedPlayerIds;
@@ -337,10 +338,12 @@ class EntryInputPhase extends GamePhaseState {
     required this.roundId,
     required this.categoryLabel,
     required List<SuperlativePrompt> superlatives,
+    DateTime? initialEndsAt,
     required this.endsAt,
     this.earliestVoteAt,
     required Set<String> submittedPlayerIds,
   })  : superlatives = List.unmodifiable(List.of(superlatives)),
+        initialEndsAt = initialEndsAt ?? endsAt,
         submittedPlayerIds = Set.unmodifiable(Set.of(submittedPlayerIds)),
         assert(roundIndex >= 0),
         assert(roundId != ''),

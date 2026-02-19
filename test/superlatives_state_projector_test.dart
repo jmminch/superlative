@@ -163,6 +163,30 @@ void main() {
           displayPayload['round']['submittedPlayerIds'], equals(const ['p1']));
     });
 
+    test('display EntryInput timer stays anchored to initial deadline', () {
+      var initialEndsAt = _baseNow.add(const Duration(seconds: 30));
+      var phase = EntryInputPhase(
+        roundIndex: 0,
+        roundId: 'round_1',
+        categoryLabel: 'Animals',
+        superlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        initialEndsAt: initialEndsAt,
+        endsAt: _baseNow.add(const Duration(seconds: 45)),
+        submittedPlayerIds: const {'p1'},
+      );
+
+      var snapshot = _snapshotForPhase(phase);
+      var displayPayload = projector.projectForDisplay(snapshot: snapshot);
+
+      expect(
+        displayPayload['round']['timeoutAtMs'],
+        initialEndsAt.millisecondsSinceEpoch,
+      );
+      expect(displayPayload['round']['timeoutSeconds'], 30);
+    });
+
     test('player projection includes vote private flags in VoteInput', () {
       var phase = VoteInputPhase(
         roundIndex: 0,
