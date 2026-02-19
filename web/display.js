@@ -160,7 +160,6 @@ function clearTimer() {
   timerKey = null;
   timerDeadlineMs = 0;
   timerDurationMs = 1;
-  byId('display-timer-text').textContent = '';
   setTimerBarWidth(0);
   setTimerVisible(false);
 }
@@ -184,7 +183,6 @@ function renderTimerFrame() {
   let seconds = Math.ceil(remainingMs / 1000);
   let label = `:${String(seconds).padStart(2, '0')}`;
   let percent = timerDurationMs <= 0 ? 0 : (remainingMs / timerDurationMs) * 100;
-  byId('display-timer-text').textContent = label;
   setTimerBarWidth(percent);
 
   if (remainingMs <= 0) {
@@ -592,7 +590,6 @@ function renderPromptStrip(prompts) {
   return visible.map(function (s, index) {
     return `
       <article class="card superlative-card" style="animation-delay:${index * 60}ms">
-        <span class="superlative-index">${index + 1}</span>
         <span class="superlative-text">${escapeHtml(s.promptText || '')}</span>
       </article>
     `;
@@ -871,7 +868,7 @@ function renderGameStarting(payload) {
 
     let timer = setTimeout(function () {
       item.classList.add('visible');
-    }, index * 420);
+    }, index * 1500);
     gameStartingLineTimers.push(timer);
   });
 }
@@ -1003,12 +1000,7 @@ const phaseControllers = {
   GameStarting: createPhaseController({
     screenId: 'screen-game-starting',
     renderFn: renderGameStarting,
-    timerFn: function (payload) {
-      if (payload.gameStarting && payload.gameStarting.timeoutSeconds !== undefined) {
-        return payload.gameStarting.timeoutSeconds;
-      }
-      return null;
-    },
+    timerFn: function () { return null; },
     onUnmount: clearTransientEffects,
   }),
   RoundIntro: createPhaseController({

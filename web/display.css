@@ -366,18 +366,6 @@ body.display-client #vote-superlatives {
   margin-bottom: 60px;
 }
 
-body.display-client .superlative-index {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 17px;
-  font-weight: 900;
-  color: #0a2e20;
-  background: linear-gradient(135deg, #9ff0cc, #72ddb2);
-}
-
 body.display-client .superlative-text {
   font-size: clamp(20px, 1.8vw, 28px);
 }
