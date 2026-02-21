@@ -15,6 +15,9 @@ let autoScrollTasks = [];
 let lobbyTransitionTimers = [];
 let gameSummaryRevealTimers = [];
 let gameSummaryRevealToken = 0;
+let shouldIgnoreLiveState = function () {
+  return false;
+};
 
 const transitionCoordinator = {
   token: 0,
@@ -122,6 +125,9 @@ function handleMessage(event) {
   }
 
   if (envelope.event === 'state') {
+    if (shouldIgnoreLiveState()) {
+      return;
+    }
     applyState(envelope.payload || {});
   }
 }
@@ -1057,6 +1063,209 @@ const phaseControllers = {
   }),
 };
 
+function mergeObjects(base, overrides) {
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    return base;
+  }
+  let out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
+  Object.keys(overrides).forEach(function (key) {
+    let nextValue = overrides[key];
+    if (nextValue &&
+      typeof nextValue === 'object' &&
+      !Array.isArray(nextValue) &&
+      out[key] &&
+      typeof out[key] === 'object' &&
+      !Array.isArray(out[key])) {
+      out[key] = mergeObjects(out[key], nextValue);
+      return;
+    }
+    out[key] = nextValue;
+  });
+  return out;
+}
+
+function createDebugPlayers() {
+  return [
+    { playerId: 'p1', role: 'player', displayName: 'Avery Lane', state: 'active' },
+    { playerId: 'p2', role: 'player', displayName: 'Jordan Fox', state: 'active' },
+    { playerId: 'p3', role: 'player', displayName: 'Mika Chen', state: 'active' },
+    { playerId: 'p4', role: 'player', displayName: 'Sam Patel', state: 'active' },
+    { playerId: 'p5', role: 'player', displayName: 'Noah Kim', state: 'eliminated' },
+    { playerId: 'd1', role: 'display', displayName: 'Display', state: 'active' },
+  ];
+}
+
+function createDebugPrompts() {
+  return [
+    { superlativeId: 's1', promptText: 'Most likely to survive on a desert island' },
+    { superlativeId: 's2', promptText: 'Most likely to become a meme' },
+    { superlativeId: 's3', promptText: 'Most likely to accidentally start a trend' },
+  ];
+}
+
+function createDebugEntries() {
+  return [
+    { entryId: 'e1', text: 'Duct tape and optimism', ownerDisplayName: 'Avery Lane', status: 'active' },
+    { entryId: 'e2', text: 'A spreadsheet for coconuts', ownerDisplayName: 'Jordan Fox', status: 'active' },
+    { entryId: 'e3', text: 'Pocket-sized karaoke machine', ownerDisplayName: 'Mika Chen', status: 'active' },
+    { entryId: 'e4', text: 'Emergency glitter', ownerDisplayName: 'Sam Patel', status: 'eliminated' },
+  ];
+}
+
+function createDebugLeaderboard() {
+  return [
+    { displayName: 'Avery Lane', score: 42 },
+    { displayName: 'Jordan Fox', score: 37 },
+    { displayName: 'Mika Chen', score: 34 },
+    { displayName: 'Sam Patel', score: 30 },
+    { displayName: 'Noah Kim', score: 22 },
+  ];
+}
+
+function createDebugStateByPhase() {
+  let nowMs = Date.now();
+  let players = createDebugPlayers();
+  let prompts = createDebugPrompts();
+  let entries = createDebugEntries();
+  let leaderboard = createDebugLeaderboard();
+  let shared = {
+    room: 'DEMO',
+    players: players,
+    round: {
+      roundId: 'r1',
+      roundIndex: 0,
+      categoryLabel: 'Things you bring on a deserted island',
+      superlatives: prompts,
+    },
+    updatedAt: new Date(nowMs).toISOString(),
+  };
+  return {
+    Lobby: mergeObjects(shared, {
+      phase: 'Lobby',
+      lobby: { canStart: true },
+      players: players.map(function (player, index) {
+        if (player.role !== 'player') {
+          return player;
+        }
+        return mergeObjects(player, {
+          state: index < 4 ? 'ready' : player.state
+        });
+      }),
+    }),
+    GameStarting: mergeObjects(shared, {
+      phase: 'GameStarting',
+      gameStarting: { showInstructions: true },
+    }),
+    RoundIntro: mergeObjects(shared, {
+      phase: 'RoundIntro',
+    }),
+    EntryInput: mergeObjects(shared, {
+      phase: 'EntryInput',
+      round: mergeObjects(shared.round, {
+        submittedPlayerIds: ['p1', 'p2', 'p4'],
+        timeoutSeconds: 30,
+        timeoutAtMs: nowMs + 30000,
+      }),
+    }),
+    VoteInput: mergeObjects(shared, {
+      phase: 'VoteInput',
+      round: mergeObjects(shared.round, {
+        currentSetIndex: 1,
+        setSuperlatives: [prompts[1]],
+        completedPlayerIds: ['p1', 'p2'],
+      }),
+      vote: {
+        voteIndex: 1,
+        roundId: 'r1',
+        superlativeId: 's2',
+        timeoutSeconds: 20,
+        timeoutAtMs: nowMs + 20000,
+      },
+    }),
+    VoteReveal: mergeObjects(shared, {
+      phase: 'VoteReveal',
+      reveal: {
+        promptText: prompts[1].promptText,
+        entries: entries,
+        results: {
+          voteCountByEntry: { e1: 4, e2: 2, e3: 1, e4: 0 },
+          pointsByEntry: { e1: 12, e2: 6, e3: 3, e4: 0 },
+        },
+        roundPointsByEntry: { e1: 21, e2: 17, e3: 12, e4: 8 },
+      },
+    }),
+    RoundSummary: mergeObjects(shared, {
+      phase: 'RoundSummary',
+      roundSummary: {
+        playerRoundResults: [
+          { displayName: 'Avery Lane', entryText: 'Duct tape and optimism', pointsThisRound: 14, totalScore: 42 },
+          { displayName: 'Jordan Fox', entryText: 'A spreadsheet for coconuts', pointsThisRound: 11, totalScore: 37 },
+          { displayName: 'Mika Chen', entryText: 'Pocket-sized karaoke machine', pointsThisRound: 9, totalScore: 34 },
+          { displayName: 'Sam Patel', entryText: 'Emergency glitter', pointsThisRound: 6, totalScore: 30 },
+        ],
+      },
+    }),
+    GameSummary: mergeObjects(shared, {
+      phase: 'GameSummary',
+      leaderboard: leaderboard,
+    }),
+  };
+}
+
+function installDisplayDebugApi() {
+  let debugStateLock = false;
+
+  window.displayDebug = {
+    phases: Object.keys(phaseControllers),
+    lockLiveState: function () {
+      debugStateLock = true;
+    },
+    unlockLiveState: function () {
+      debugStateLock = false;
+    },
+    show: function (phaseName, overrides = {}) {
+      let fixtures = createDebugStateByPhase();
+      let base = fixtures[phaseName];
+      if (!base) {
+        showError('Unknown debug phase: ' + phaseName);
+        return;
+      }
+      debugStateLock = true;
+      applyState(mergeObjects(base, overrides));
+    },
+    showAll: function (delayMs = 2500) {
+      let phases = this.phases.slice();
+      let index = 0;
+      let self = this;
+      function next() {
+        if (index >= phases.length) {
+          return;
+        }
+        self.show(phases[index]);
+        index += 1;
+        setTimeout(next, delayMs);
+      }
+      next();
+    },
+    payload: function (phaseName) {
+      return createDebugStateByPhase()[phaseName] || null;
+    },
+    apply: function (payload, lockState = true) {
+      if (lockState) {
+        debugStateLock = true;
+      }
+      applyState(payload || {});
+    },
+    isLiveStateLocked: function () {
+      return debugStateLock;
+    },
+  };
+
+  return function shouldIgnoreState() {
+    return debugStateLock;
+  };
+}
+
 function setupHandlers() {
   byId('login-button').onclick = function () {
     connect();
@@ -1081,6 +1290,7 @@ function setupHandlers() {
 }
 
 const DISPLAY_ASSET_URLS = [];
+shouldIgnoreLiveState = installDisplayDebugApi();
 restoreRoom();
 setupHandlers();
 preloadDisplayAssets(DISPLAY_ASSET_URLS);
