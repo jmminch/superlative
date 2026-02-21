@@ -15,8 +15,29 @@ let autoScrollTasks = [];
 let lobbyTransitionTimers = [];
 let gameSummaryRevealTimers = [];
 let gameSummaryRevealToken = 0;
+let musicFadeIntervalId = null;
+let musicAudio = null;
+let musicTrackId = null;
+let musicTransitionToken = 0;
 let shouldIgnoreLiveState = function () {
   return false;
+};
+
+const MUSIC_FADE_DURATION_MS = 1000;
+const MUSIC_FADE_STEP_MS = 50;
+const MUSIC_TRACKS = {
+  gameShow: {
+    src: 'audio/music/game_show.mp3',
+    loop: true,
+  },
+  waiting: {
+    src: 'audio/music/waiting.mp3',
+    loop: true,
+  },
+  fanfare: {
+    src: 'audio/music/fanfare.mp3',
+    loop: false,
+  },
 };
 
 const transitionCoordinator = {
@@ -290,6 +311,142 @@ function preloadDisplayAssets(urls) {
   })).then(function () {
     return true;
   });
+}
+
+function getMusicTrackForPhase(phaseName) {
+  if (phaseName === 'GameStarting' || phaseName === 'GameSummary') {
+    return 'gameShow';
+  }
+  if (phaseName === 'EntryInput' || phaseName === 'VoteInput') {
+    return 'waiting';
+  }
+  if (phaseName === 'VoteReveal') {
+    return 'fanfare';
+  }
+  return null;
+}
+
+function ensureMusicAudio() {
+  if (!musicAudio) {
+    musicAudio = new Audio();
+    musicAudio.preload = 'auto';
+    musicAudio.volume = 1;
+  }
+  return musicAudio;
+}
+
+function clearMusicFadeInterval() {
+  if (musicFadeIntervalId) {
+    clearInterval(musicFadeIntervalId);
+    musicFadeIntervalId = null;
+  }
+}
+
+function fadeOutCurrentMusic(onDone) {
+  if (!musicAudio || !musicTrackId) {
+    musicTrackId = null;
+    if (onDone) {
+      onDone();
+    }
+    return;
+  }
+
+  clearMusicFadeInterval();
+  let audio = musicAudio;
+  if (audio.paused || audio.ended) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 1;
+    musicTrackId = null;
+    if (onDone) {
+      onDone();
+    }
+    return;
+  }
+  let startVolume = Math.max(0, Math.min(1, Number(audio.volume) || 1));
+  let steps = Math.max(1, Math.round(MUSIC_FADE_DURATION_MS / MUSIC_FADE_STEP_MS));
+  let step = 0;
+
+  musicFadeIntervalId = setInterval(function () {
+    step += 1;
+    let nextVolume = Math.max(0, startVolume * (1 - (step / steps)));
+    audio.volume = nextVolume;
+    if (step < steps) {
+      return;
+    }
+
+    clearMusicFadeInterval();
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 1;
+    musicTrackId = null;
+    if (onDone) {
+      onDone();
+    }
+  }, MUSIC_FADE_STEP_MS);
+}
+
+function playMusicTrack(trackId) {
+  let track = MUSIC_TRACKS[trackId];
+  if (!track) {
+    return;
+  }
+
+  let audio = ensureMusicAudio();
+  clearMusicFadeInterval();
+  audio.volume = 1;
+  audio.loop = !!track.loop;
+  if (audio.src !== new URL(track.src, window.location.href).href) {
+    audio.src = track.src;
+    audio.currentTime = 0;
+  }
+
+  musicTrackId = trackId;
+  let playPromise = audio.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(function () {
+      // Ignore autoplay-block failures; playback will resume after user gesture.
+    });
+  }
+}
+
+function transitionMusicForPhase(nextPhaseName) {
+  let nextTrackId = getMusicTrackForPhase(nextPhaseName);
+  if (musicTrackId === nextTrackId) {
+    return;
+  }
+
+  musicTransitionToken += 1;
+  let token = musicTransitionToken;
+  let startNextTrack = function () {
+    if (token !== musicTransitionToken) {
+      return;
+    }
+    if (!nextTrackId) {
+      return;
+    }
+    playMusicTrack(nextTrackId);
+  };
+
+  if (!musicTrackId) {
+    startNextTrack();
+    return;
+  }
+
+  fadeOutCurrentMusic(startNextTrack);
+}
+
+function stopMusicImmediately() {
+  musicTransitionToken += 1;
+  clearMusicFadeInterval();
+  if (!musicAudio) {
+    musicTrackId = null;
+    return;
+  }
+  musicAudio.pause();
+  musicAudio.currentTime = 0;
+  musicAudio.volume = 1;
+  musicTrackId = null;
 }
 
 function initialsForName(name) {
@@ -793,6 +950,7 @@ function applyState(payload) {
 
   updateHeader(payload);
   setPhaseTheme(payload.phase);
+  transitionMusicForPhase(payload.phase);
   transitionToPhase(payload.phase, payload);
 }
 
@@ -1420,6 +1578,7 @@ function setupHandlers() {
     }
     clearTimer();
     clearTransientEffects();
+    stopMusicImmediately();
     showScreen('screen-login');
   };
 }
