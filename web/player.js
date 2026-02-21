@@ -262,47 +262,6 @@ function entryTimerMode(payload, previousPayload) {
   return 'normal';
 }
 
-function renderPlayers(players) {
-  let html = '';
-  players.forEach(function (p) {
-    if (p.role !== 'player') {
-      return;
-    }
-    html += `<div class="card">${p.displayName} <span class="muted">(${p.state})</span></div>`;
-  });
-  return html;
-}
-
-function renderLeaderboard(board) {
-  let html = '';
-  board.forEach(function (r) {
-    html += `<div class="card"><strong>${r.displayName}</strong><span class="float">${r.score}</span></div>`;
-  });
-  return html;
-}
-
-function renderRoundSummary(rows, superlativeResults) {
-  let html = '';
-  rows.forEach(function (r) {
-    let entryText = r.entryText || '-';
-    html += `<div class="card"><strong>${r.displayName}</strong><span class="float">${r.totalScore} total</span><br><span class="muted">Entry: ${entryText}</span><br><span class="muted">Round points: ${r.pointsThisRound}</span></div>`;
-  });
-
-  html += '<h3>Superlative Winners</h3>';
-  (superlativeResults || []).forEach(function (result) {
-    let top = result.topEntries || [];
-    let lines = top.map(function (row) {
-      return `<div class="muted">#${row.rank} ${row.entryText} - ${row.ownerDisplayName} - ${row.voteCount} votes</div>`;
-    }).join('');
-    if (!lines) {
-      lines = '<div class="muted">No votes recorded.</div>';
-    }
-    html += `<div class="card"><strong>${result.promptText}</strong><br>${lines}</div>`;
-  });
-
-  return html;
-}
-
 function renderVoteButtons(entries, locked, selectedEntryId) {
   let html = '';
   entries.forEach(function (e) {
@@ -313,14 +272,12 @@ function renderVoteButtons(entries, locked, selectedEntryId) {
   return html;
 }
 
-function renderReveal(entries, results, roundPointsByEntry) {
-  let html = '';
-  entries.forEach(function (e) {
-    let votes = (results.voteCountByEntry && results.voteCountByEntry[e.entryId]) || 0;
-    let roundPoints = (roundPointsByEntry && roundPointsByEntry[e.entryId]) || 0;
-    html += `<div class="card"><strong>${e.text}</strong><br><span class="muted">${votes} votes this prompt • ${roundPoints} round points total</span></div>`;
-  });
-  return html;
+function setVisible(id, visible) {
+  let node = byId(id);
+  if (!node) {
+    return;
+  }
+  node.classList.toggle('hidden', !visible);
 }
 
 function updateHeader(payload) {
@@ -341,42 +298,20 @@ function renderState(payload, previousPayload) {
   currentPayload = payload;
 
   byId('lobby-start').disabled = !(payload.lobby && payload.lobby.canStart);
-  byId('round-advance').style.display = payload.host ? 'block' : 'none';
-  byId('reveal-advance').style.display = payload.host ? 'block' : 'none';
-  byId('round-summary-advance').style.display = payload.host ? 'block' : 'none';
-  byId('game-summary-advance').style.display = payload.host ? 'block' : 'none';
-  byId('game-summary-end').style.display = payload.host ? 'block' : 'none';
 
   switch (payload.phase) {
     case 'Lobby':
-      byId('lobby-status').textContent = payload.lobby && payload.lobby.canStart
-        ? 'Ready to start.'
-        : 'Waiting for more players.';
-      byId('lobby-player-list').innerHTML = renderPlayers(payload.players || []);
+      byId('lobby-status').textContent = 'Waiting for game to start';
       attachTimer(null);
       showScreen('screen-lobby');
       break;
 
-    case 'RoundIntro':
-      byId('round-title').textContent = `Round ${Number(payload.round.roundIndex || 0) + 1}`;
-      byId('round-category').textContent = `Category: ${payload.round.categoryLabel}`;
-      byId('round-superlatives').innerHTML = (payload.round.superlatives || []).map(
-        (s) => `<div class="card">${s.promptText}</div>`
-      ).join('');
-      attachTimer(payload.round.timeoutSeconds, {
-        mode: 'normal',
-        key: `RoundIntro:${payload.round.roundId}`,
-        deadlineMs: payload.round.timeoutAtMs
-      });
-      showScreen('screen-round-intro');
-      break;
-
     case 'EntryInput':
-      byId('entry-category').textContent = `Enter a ${payload.round.categoryLabel}`;
       byId('entry-submit').disabled = !!payload.youSubmitted;
       byId('entry-note').textContent = payload.youSubmitted
-        ? 'Submitted. Waiting for others.'
+        ? 'Your entry has been submitted.'
         : '';
+      setVisible('entry-form', !payload.youSubmitted);
       attachTimer(payload.round.timeoutSeconds, {
         mode: entryTimerMode(payload, previousPayload),
         key: `EntryInput:${payload.round.roundId}`,
@@ -388,13 +323,14 @@ function renderState(payload, previousPayload) {
     case 'VoteInput':
       byId('vote-prompt').textContent = payload.vote.promptText;
       byId('vote-note').textContent = payload.youVoted
-        ? 'Vote locked in. Waiting for others.'
-        : 'Choose the best entry for this superlative.';
+        ? 'Your votes have been submitted.'
+        : '';
       byId('vote-list').innerHTML = renderVoteButtons(
         payload.vote.entries || [],
         !!payload.youVoted,
         payload.yourVoteEntryId || null
       );
+      setVisible('vote-form', !payload.youVoted);
       attachTimer(payload.vote.timeoutSeconds, {
         mode: 'normal',
         key: `VoteInput:${payload.vote.roundId}:${payload.round.currentSetIndex}`,
@@ -403,46 +339,10 @@ function renderState(payload, previousPayload) {
       showScreen('screen-vote');
       break;
 
-    case 'VoteReveal':
-      byId('reveal-prompt').textContent = payload.reveal.promptText;
-      byId('reveal-list').innerHTML = renderReveal(
-        payload.reveal.entries || [],
-        payload.reveal.results || {},
-        payload.reveal.roundPointsByEntry || {}
-      );
-      attachTimer(payload.reveal.timeoutSeconds, {
-        mode: 'normal',
-        key: `VoteReveal:${payload.reveal.roundId}:${payload.reveal.setIndex}`,
-        deadlineMs: payload.reveal.timeoutAtMs
-      });
-      showScreen('screen-reveal');
-      break;
-
-    case 'RoundSummary':
-      byId('round-summary-board').innerHTML = renderRoundSummary(
-        payload.roundSummary.playerRoundResults || [],
-        payload.roundSummary.superlativeResults || []
-      );
-      attachTimer(payload.roundSummary.timeoutSeconds, {
-        mode: 'normal',
-        key: `RoundSummary:${payload.roundSummary.roundId}`,
-        deadlineMs: payload.roundSummary.timeoutAtMs
-      });
-      showScreen('screen-round-summary');
-      break;
-
-    case 'GameSummary':
-      byId('game-summary-board').innerHTML = renderLeaderboard(payload.leaderboard || []);
-      attachTimer(payload.gameSummary.timeoutSeconds, {
-        mode: 'normal',
-        key: `GameSummary:${payload.gameSummary.gameId || ''}`,
-        deadlineMs: payload.gameSummary.timeoutAtMs
-      });
-      showScreen('screen-game-summary');
-      break;
-
     default:
-      showError('Unknown phase: ' + payload.phase);
+      byId('wait-note').textContent = 'Just wait...';
+      attachTimer(null);
+      showScreen('screen-wait');
       break;
   }
 }
@@ -466,26 +366,6 @@ function setupHandlers() {
 
   byId('lobby-start').onclick = function () {
     send({ event: 'startGame' });
-  };
-
-  byId('round-advance').onclick = function () {
-    send({ event: 'advance' });
-  };
-
-  byId('reveal-advance').onclick = function () {
-    send({ event: 'advance' });
-  };
-
-  byId('round-summary-advance').onclick = function () {
-    send({ event: 'advance' });
-  };
-
-  byId('game-summary-advance').onclick = function () {
-    send({ event: 'advance' });
-  };
-
-  byId('game-summary-end').onclick = function () {
-    send({ event: 'endGame' });
   };
 
   byId('entry-submit').onclick = function () {

@@ -34,51 +34,31 @@
 
     <section id="screen-lobby" class="screen">
       <h2>Lobby</h2>
-      <p id="lobby-status"></p>
-      <div id="lobby-player-list" class="card-list"></div>
+      <p id="lobby-status">Waiting for game to start</p>
       <button id="lobby-start" class="primary">Start Game</button>
-    </section>
-
-    <section id="screen-round-intro" class="screen">
-      <h2 id="round-title">Round</h2>
-      <p id="round-category"></p>
-      <div id="round-superlatives" class="card-list"></div>
-      <button id="round-advance" class="primary">Continue</button>
     </section>
 
     <section id="screen-entry" class="screen">
       <h2>Submit Your Entry</h2>
-      <p id="entry-category"></p>
-      <input type="text" id="entry-text" maxlength="40" autocomplete="off" placeholder="Enter your answer">
-      <button id="entry-submit" class="primary">Submit Entry</button>
+      <div id="entry-form">
+        <input type="text" id="entry-text" maxlength="40" autocomplete="off" placeholder="Enter your answer">
+        <button id="entry-submit" class="primary">Submit Entry</button>
+      </div>
       <p id="entry-note" class="note"></p>
     </section>
 
     <section id="screen-vote" class="screen">
       <h2 id="vote-title">Vote</h2>
-      <p id="vote-prompt"></p>
-      <div id="vote-list" class="button-list"></div>
+      <div id="vote-form">
+        <p id="vote-prompt"></p>
+        <div id="vote-list" class="button-list"></div>
+      </div>
       <p id="vote-note" class="note"></p>
     </section>
 
-    <section id="screen-reveal" class="screen">
-      <h2>Vote Results</h2>
-      <p id="reveal-prompt"></p>
-      <div id="reveal-list" class="card-list"></div>
-      <button id="reveal-advance" class="primary">Continue</button>
-    </section>
-
-    <section id="screen-round-summary" class="screen">
-      <h2>Round Summary</h2>
-      <div id="round-summary-board" class="card-list"></div>
-      <button id="round-summary-advance" class="primary">Next Round</button>
-    </section>
-
-    <section id="screen-game-summary" class="screen">
-      <h2>Final Scores</h2>
-      <div id="game-summary-board" class="card-list"></div>
-      <button id="game-summary-advance" class="primary">Back to Lobby</button>
-      <button id="game-summary-end" class="secondary">End Game</button>
+    <section id="screen-wait" class="screen">
+      <h2>Waiting</h2>
+      <p id="wait-note">Just wait...</p>
     </section>
 
     <section id="screen-error" class="screen">

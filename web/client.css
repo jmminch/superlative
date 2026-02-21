@@ -1,7 +1,6 @@
 :root {
   font-size: 16px;
   font-family: 'Nunito', sans-serif;
-  --bg: #f7faf8;
   --surface: #ffffff;
   --text: #1f2933;
   --muted: #5f6c76;
@@ -78,12 +77,12 @@ body {
   display: block;
 }
 
-h2 {
-  margin: 4px 0 12px 0;
+.hidden {
+  display: none;
 }
 
-h3 {
-  margin: 12px 0 8px 0;
+h2 {
+  margin: 4px 0 12px 0;
 }
 
 label {
@@ -131,19 +130,6 @@ button.secondary {
   margin-top: 10px;
 }
 
-.card-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 8px;
-}
-
-.card {
-  border: 1px solid var(--border);
-  background: #fbfefd;
-  border-radius: 8px;
-  padding: 9px;
-}
-
 .button-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -170,14 +156,6 @@ button.secondary {
 
 .small-row {
   margin-top: 10px;
-}
-
-.float {
-  float: right;
-}
-
-.muted {
-  color: var(--muted);
 }
 
 #footer-actions {
