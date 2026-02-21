@@ -9,3 +9,4 @@ app/
 
 media/
 .gitignore
+web/audio/
