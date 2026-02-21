@@ -309,14 +309,50 @@ body.display-client .reveal-stage-label {
   color: var(--display-accent-strong);
 }
 
+body.display-client .reveal-prompt-section .reveal-stage-label {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 3vw, 44px);
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
 body.display-client .reveal-top-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 12px;
 }
 
+body.display-client .reveal-prompt-section {
+  grid-column: 1 / -1;
+  margin-bottom: 10px;
+}
+
+body.display-client .reveal-prompt-section.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+}
+
+body.display-client .reveal-prompt-section.is-visible {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 280ms ease;
+}
+
 body.display-client .reveal-top-card {
   text-align: center;
+  animation: none;
+}
+
+body.display-client .reveal-top-card.reveal-top-card-pending {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+body.display-client .reveal-top-card.revealed {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease, transform 300ms ease;
 }
 
 body.display-client .reveal-standing-card {

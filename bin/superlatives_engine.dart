@@ -552,6 +552,8 @@ class GameEngine {
       updatedAt: _now(),
     );
 
+    var voteRevealSeconds =
+        _voteRevealPhaseSecondsForPromptCount(phase.setSuperlatives.length);
     return stateMachine.transitionTo(
       VoteRevealPhase(
         roundIndex: phase.roundIndex,
@@ -563,7 +565,7 @@ class GameEngine {
         roundSuperlatives: phase.roundSuperlatives,
         setSuperlatives: phase.setSuperlatives,
         results: setResults,
-        endsAt: _now().add(Duration(seconds: snapshot.config.revealSeconds)),
+        endsAt: _now().add(Duration(seconds: voteRevealSeconds)),
       ),
     );
   }
@@ -829,6 +831,32 @@ class GameEngine {
       return promptCount - 1;
     }
     return min;
+  }
+
+  int _voteRevealPhaseSecondsForPromptCount(int promptCount) {
+    var firstEntryRevealMs = 2000;
+    var secondEntryRevealMs = 1000;
+    var thirdEntryRevealMs = 1000;
+    var betweenPromptsMs = 3000;
+    var afterAllVotesMs = 5000;
+    var standingsHoldMs = 10000;
+
+    if (promptCount <= 0) {
+      return snapshot.config.revealSeconds;
+    }
+
+    var perPromptRevealMs =
+        firstEntryRevealMs + secondEntryRevealMs + thirdEntryRevealMs;
+    var interPromptWindowMs = perPromptRevealMs + betweenPromptsMs;
+    var totalMs = perPromptRevealMs +
+        ((promptCount - 1) * interPromptWindowMs) +
+        afterAllVotesMs +
+        standingsHoldMs;
+    var totalSeconds = (totalMs / 1000).ceil();
+    if (totalSeconds < snapshot.config.revealSeconds) {
+      return snapshot.config.revealSeconds;
+    }
+    return totalSeconds;
   }
 
   Map<String, int> _roundPointsByPlayer(RoundInstance round) {

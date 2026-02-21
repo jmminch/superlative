@@ -436,7 +436,9 @@ function renderRevealTopThree(entries, results) {
     return String(a.entryId).localeCompare(String(b.entryId));
   });
 
-  let top = ranked.slice(0, 3);
+  let top = ranked.slice(0, 3).map(function (row, index) {
+    return mergeObjects(row, { rank: index + 1 });
+  });
   if (!top.length) {
     return '<p class="muted">No votes recorded for this prompt.</p>';
   }
@@ -445,8 +447,8 @@ function renderRevealTopThree(entries, results) {
     <div class="reveal-top-grid">
       ${top.map(function (row, index) {
     return `
-          <article class="card reveal-top-card" style="animation-delay:${index * 140}ms">
-            <span class="board-rank">#${index + 1}</span>
+          <article class="card reveal-top-card reveal-top-card-pending" data-rank="${row.rank}">
+            <span class="board-rank">#${row.rank}</span>
             <strong class="entry-text">${escapeHtml(row.text)}</strong>
             <span class="float">+${row.points}</span>
           </article>
@@ -970,9 +972,13 @@ function renderVoteReveal(payload) {
   let aggregateResults = combinePromptResults(promptResults);
   let roundPointsByEntry = reveal.roundPointsByEntry || {};
   let revealList = byId('reveal-list');
-  let revealPrompt = byId('reveal-prompt');
   let renderToken = ++voteRevealRenderToken;
-  let perPromptDelayMs = 2200;
+  let firstRevealDelayMs = 2000;
+  let secondRevealDelayMs = firstRevealDelayMs + 1000;
+  let thirdRevealDelayMs = secondRevealDelayMs + 1000;
+  let betweenPromptsDelayMs = 3000;
+  let afterAllVotesToStandingsMs = 5000;
+  let promptWindowMs = thirdRevealDelayMs + betweenPromptsDelayMs;
 
   clearVoteRevealTimers();
   clearAutoScrollTasks();
@@ -980,41 +986,71 @@ function renderVoteReveal(payload) {
   function renderPromptStage(promptRow) {
     let promptText = promptRow && promptRow.promptText ? promptRow.promptText : '';
     let promptResults = promptRow && promptRow.results ? promptRow.results : {};
-    revealPrompt.textContent = promptText;
-    revealList.innerHTML = `
-      <p class="reveal-stage-label">Top entries for this superlative</p>
+    let section = document.createElement('section');
+    section.className = 'reveal-prompt-section';
+    section.innerHTML = `
+      <p class="reveal-stage-label">${escapeHtml(promptText)}</p>
       ${renderRevealTopThree(entries, promptResults)}
     `;
+    return section;
   }
 
-  if (promptResults.length) {
-    renderPromptStage(promptResults[0]);
-  } else {
-    revealPrompt.textContent = '';
-    revealList.innerHTML = `
-      <p class="reveal-stage-label">No reveal prompt results available.</p>
-    `;
-  }
-
-  promptResults.forEach(function (promptRow, index) {
-    if (index === 0) {
-      return;
-    }
+  function queueRankReveal(sectionNode, rank, delayMs) {
     let timer = setTimeout(function () {
       if (renderToken !== voteRevealRenderToken) {
         return;
       }
-      renderPromptStage(promptRow);
-    }, index * perPromptDelayMs);
+      if (!sectionNode || !sectionNode.isConnected) {
+        return;
+      }
+      let card = sectionNode.querySelector(`.reveal-top-card[data-rank="${rank}"]`);
+      if (card) {
+        card.classList.add('revealed');
+      }
+    }, delayMs);
+    voteRevealTimers.push(timer);
+  }
+
+  revealList.innerHTML = '';
+
+  let revealSections = promptResults.map(function (promptRow) {
+    let section = renderPromptStage(promptRow);
+    section.classList.add('is-hidden');
+    revealList.appendChild(section);
+    return section;
+  });
+
+  if (!promptResults.length) {
+    revealList.innerHTML = '<p class="reveal-stage-label">No reveal prompt results available.</p>';
+  }
+
+  promptResults.forEach(function (promptRow, index) {
+    let startMs = index * promptWindowMs;
+    let timer = setTimeout(function () {
+      if (renderToken !== voteRevealRenderToken) {
+        return;
+      }
+      let section = revealSections[index];
+      if (!section) {
+        return;
+      }
+      section.classList.remove('is-hidden');
+      section.classList.add('is-visible');
+      queueRankReveal(section, 3, firstRevealDelayMs);
+      queueRankReveal(section, 2, secondRevealDelayMs);
+      queueRankReveal(section, 1, thirdRevealDelayMs);
+    }, startMs);
     voteRevealTimers.push(timer);
   });
 
-  let standingsDelayMs = Math.max(1, promptResults.length) * perPromptDelayMs;
+  let allVotesRevealedMs = promptResults.length > 0
+    ? ((promptResults.length - 1) * promptWindowMs) + thirdRevealDelayMs
+    : 0;
+  let standingsDelayMs = allVotesRevealedMs + afterAllVotesToStandingsMs;
   let transitionTimer = setTimeout(function () {
     if (renderToken !== voteRevealRenderToken) {
       return;
     }
-    revealPrompt.textContent = `Set ${Number(reveal.setIndex || 0) + 1} results`;
     revealList.innerHTML = `
       <p class="reveal-stage-label">Round standings after this reveal</p>
       ${renderRoundStandings(entries, aggregateResults, roundPointsByEntry)}
