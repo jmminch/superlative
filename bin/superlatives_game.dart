@@ -25,7 +25,7 @@ class RoomConfig {
     this.voteInputSeconds = 20,
     this.revealSeconds = 12,
     this.scorePoolPerVote = 1000,
-    this.allowSelfVote = true,
+    this.allowSelfVote = false,
     this.maxEntryLength = 40,
     this.minPlayersToStart = 3,
   })  : assert(roundCount > 0),
