@@ -487,10 +487,9 @@ function renderRoundStandings(entries, results, roundPointsByEntry) {
       <article class="card reveal-standing-card${eliminated ? ' is-eliminated' : ''}" style="animation-delay:${index * 60}ms">
         <span class="board-rank">#${index + 1}</span>
         <strong class="entry-text">${escapeHtml(row.text)}</strong>
-        <span class="reveal-metrics">
-          <span>${row.roundPoints} total</span>
-          <span>+${row.setPoints} this reveal</span>
-          <span>${escapeHtml(normalizeStateLabel(row.status || 'active'))}</span>
+        <span class="reveal-standing-points">
+          <span class="reveal-standing-total">${row.roundPoints}</span>
+          <span class="reveal-standing-gain">+${row.setPoints}</span>
         </span>
       </article>
     `;

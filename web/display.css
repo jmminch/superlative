@@ -297,6 +297,10 @@ body.display-client #game-summary-board {
   overflow-y: auto;
 }
 
+body.display-client #reveal-list {
+  grid-template-columns: 1fr;
+}
+
 body.display-client #round-summary-board {
   grid-template-columns: 1fr;
 }
@@ -362,9 +366,31 @@ body.display-client .reveal-standing-card {
   gap: 10px;
 }
 
+body.display-client .reveal-standing-points {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-self: end;
+}
+
+body.display-client .reveal-standing-total {
+  font-size: clamp(24px, 2.2vw, 34px);
+  font-weight: 800;
+  color: var(--display-accent-strong);
+}
+
+body.display-client .reveal-standing-gain {
+  font-size: clamp(14px, 1.2vw, 18px);
+  color: var(--display-muted);
+}
+
 body.display-client .reveal-standing-card.is-eliminated {
   opacity: 0.5;
   filter: grayscale(0.35);
+}
+
+body.display-client .reveal-standing-card.is-eliminated .entry-text {
+  text-decoration: line-through;
 }
 
 body.display-client .board-card {
