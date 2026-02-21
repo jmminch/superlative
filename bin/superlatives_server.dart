@@ -154,6 +154,7 @@ class SuperlativesServer {
 
         var handled = room.handleEvent(playerId: sessionId, event: event);
         if (!handled) {
+          room.logRejectedEvent(playerId: sessionId, event: event);
           sendError(const ProtocolError(
             code: 'event_rejected',
             message: 'Event was rejected for current state/permissions.',
@@ -219,6 +220,8 @@ class RoomRuntime {
   int totalLogins = 0;
   int reconnectCount = 0;
   int invalidEventCount = 0;
+  String? lastRejectReasonCode;
+  Map<String, Object?> lastRejectContext = const <String, Object?>{};
 
   late RoomStateMachine stateMachine;
   late GameEngine engine;
@@ -412,8 +415,15 @@ class RoomRuntime {
     required String playerId,
     required ClientEvent event,
   }) {
+    _clearLastReject();
+    engine.clearLastReject();
+
     var player = stateMachine.snapshot.players[playerId];
     if (player == null) {
+      _setLastReject(
+        'unknown_player_session',
+        {'playerId': playerId},
+      );
       return false;
     }
 
@@ -421,23 +431,42 @@ class RoomRuntime {
 
     if (event is StartGameEvent) {
       handled = _handleStartGame(playerId);
+      if (!handled) {
+        _setLastReject('start_game_rejected');
+      }
     } else if (event is SubmitEntryEvent) {
       handled = engine.submitEntry(playerId: playerId, text: event.text);
       if (handled) {
         _resetMissedActions(playerId);
+      } else {
+        _setLastReject('submit_entry_rejected');
       }
     } else if (event is SubmitVoteEvent) {
       handled = engine.submitVote(playerId: playerId, entryId: event.entryId);
       if (handled) {
         _resetMissedActions(playerId);
+      } else {
+        _setLastReject(
+          engine.lastRejectReasonCode ?? 'submit_vote_rejected',
+          engine.lastRejectContext,
+        );
       }
       if (handled && _allActivePlayersVoted()) {
         handled = _closeVoteInputPhase();
+        if (!handled) {
+          _setLastReject('close_vote_phase_failed');
+        }
       }
     } else if (event is AdvanceEvent) {
       handled = _handleAdvance(playerId);
+      if (!handled) {
+        _setLastReject('advance_rejected');
+      }
     } else if (event is EndGameEvent) {
       handled = stateMachine.onHostControl(playerId, HostControlEvent.endGame);
+      if (!handled) {
+        _setLastReject('end_game_rejected');
+      }
     } else if (event is LogoutEvent) {
       handled = true;
     } else if (event is PongEvent) {
@@ -448,9 +477,31 @@ class RoomRuntime {
       broadcastState();
     } else {
       invalidEventCount++;
+      if (lastRejectReasonCode == null) {
+        _setLastReject('event_rejected');
+      }
     }
 
     return handled;
+  }
+
+  void logRejectedEvent({
+    required String playerId,
+    required ClientEvent event,
+  }) {
+    var player = stateMachine.snapshot.players[playerId];
+    print(
+      '${DateTime.now().toIso8601String()} '
+      'event_rejected '
+      'room=$roomCode '
+      'playerId=$playerId '
+      'playerRole=${player?.role.name ?? 'unknown'} '
+      'playerState=${player?.state.name ?? 'unknown'} '
+      'event=${event.kind.name} '
+      'phase=${stateMachine.snapshot.phase.phase} '
+      'reason=${lastRejectReasonCode ?? 'unknown'} '
+      'context=$lastRejectContext',
+    );
   }
 
   bool processAutoTimeoutForCurrentPhase() {
@@ -728,6 +779,19 @@ class RoomRuntime {
         submittedPlayerIds: phase.submittedPlayerIds,
       ),
     );
+  }
+
+  void _clearLastReject() {
+    lastRejectReasonCode = null;
+    lastRejectContext = const <String, Object?>{};
+  }
+
+  void _setLastReject(
+    String code, [
+    Map<String, Object?> context = const <String, Object?>{},
+  ]) {
+    lastRejectReasonCode = code;
+    lastRejectContext = Map<String, Object?>.of(context);
   }
 
   void broadcastState() {

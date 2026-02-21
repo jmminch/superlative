@@ -132,7 +132,12 @@ class StateProjector {
           'voteIndex': phase.voteIndex,
           'superlativeId': phase.superlativeId,
           'promptText': phase.promptText,
-          'entries': _entriesView(snapshot, round, includeOwner: false),
+          'entries': _entriesView(
+            snapshot,
+            round,
+            includeOwner: false,
+            includeEliminated: role != 'player',
+          ),
           'timeoutSeconds': _remainingSeconds(phase.endsAt),
           'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
         };
@@ -167,7 +172,12 @@ class StateProjector {
         'voteIndex': phase.voteIndex,
         'superlativeId': currentPrompt.superlativeId,
         'promptText': currentPrompt.promptText,
-        'entries': _entriesView(snapshot, round, includeOwner: false),
+        'entries': _entriesView(
+          snapshot,
+          round,
+          includeOwner: false,
+          includeEliminated: role != 'player',
+        ),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
         'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
@@ -300,13 +310,17 @@ class StateProjector {
   }
 
   List<Map<String, dynamic>> _entriesView(
-      SuperlativesRoomSnapshot snapshot, RoundInstance? round,
-      {required bool includeOwner}) {
+    SuperlativesRoomSnapshot snapshot,
+    RoundInstance? round, {
+    required bool includeOwner,
+    bool includeEliminated = true,
+  }) {
     if (round == null) {
       return const [];
     }
 
     var entries = List<Entry>.of(round.entries)
+      ..removeWhere((e) => !includeEliminated && e.status != EntryStatus.active)
       ..sort((a, b) => a.entryId.compareTo(b.entryId));
 
     return entries.map((e) {

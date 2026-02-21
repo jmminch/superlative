@@ -284,6 +284,75 @@ void main() {
       expect(p2Payload['yourVoteEntryId'], isNull);
     });
 
+    test('player VoteInput projection excludes eliminated entries', () {
+      var phase = VoteInputPhase(
+        roundIndex: 0,
+        roundId: 'round_1',
+        voteIndex: 0,
+        superlativeId: 's1',
+        promptText: 'Cutest',
+        roundSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        endsAt: _baseNow.add(const Duration(seconds: 20)),
+        votesByPlayer: const {},
+        setSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        promptIndexByPlayer: const {},
+      );
+      var snapshot = _snapshotForPhase(
+        phase,
+        round: RoundInstance(
+          roundId: 'round_1',
+          categoryId: 'animals',
+          categoryLabel: 'Animals',
+          entries: const [
+            Entry(
+              entryId: 'e1',
+              ownerPlayerId: 'p1',
+              textOriginal: 'RACCOON',
+              textNormalized: 'RACCOON',
+              status: EntryStatus.active,
+            ),
+            Entry(
+              entryId: 'e2',
+              ownerPlayerId: 'p2',
+              textOriginal: 'OTTER',
+              textNormalized: 'OTTER',
+              status: EntryStatus.eliminated,
+            ),
+          ],
+          votePhases: const [],
+          voteSets: [
+            VoteSet(
+              setIndex: 0,
+              prompts: [
+                VotePromptState(
+                  promptIndex: 0,
+                  superlativeId: 's1',
+                  promptText: 'Cutest',
+                  votesByPlayer: const {},
+                ),
+              ],
+            ),
+          ],
+          roundPointsByEntry: const {},
+          roundPointsByPlayerPending: const {},
+          status: RoundStatus.active,
+        ),
+      );
+
+      var playerPayload =
+          projector.projectForPlayer(playerId: 'p1', snapshot: snapshot);
+      var displayPayload = projector.projectForDisplay(snapshot: snapshot);
+
+      var playerEntries = playerPayload['vote']['entries'] as List<dynamic>;
+      var displayEntries = displayPayload['vote']['entries'] as List<dynamic>;
+      expect(playerEntries.map((e) => e['entryId']), equals(['e1']));
+      expect(displayEntries.map((e) => e['entryId']), equals(['e1', 'e2']));
+    });
+
     test('display projection includes reveal results and leaderboard', () {
       var phase = VoteRevealPhase(
         roundIndex: 0,

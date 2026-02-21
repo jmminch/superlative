@@ -9,6 +9,8 @@ class GameEngine {
   final Random _random;
   final DateTime Function() _now;
   static const Duration secondEntryGrace = Duration(seconds: 5);
+  String? lastRejectReasonCode;
+  Map<String, Object?> lastRejectContext = const <String, Object?>{};
 
   int _gameSeq = 0;
   int _entrySeq = 0;
@@ -21,6 +23,26 @@ class GameEngine {
         _now = now ?? DateTime.now;
 
   SuperlativesRoomSnapshot get snapshot => stateMachine.snapshot;
+
+  void clearLastReject() {
+    lastRejectReasonCode = null;
+    lastRejectContext = const <String, Object?>{};
+  }
+
+  bool _rejectVote(
+    String code, {
+    required String playerId,
+    required String entryId,
+    Map<String, Object?> context = const <String, Object?>{},
+  }) {
+    lastRejectReasonCode = code;
+    lastRejectContext = <String, Object?>{
+      'playerId': playerId,
+      'entryId': entryId,
+      ...context,
+    };
+    return false;
+  }
 
   List<SuperlativePrompt> selectRoundSuperlatives(
     List<SuperlativePrompt> pool, {
@@ -295,31 +317,67 @@ class GameEngine {
   }
 
   bool submitVote({required String playerId, required String entryId}) {
+    clearLastReject();
     var phase = snapshot.phase;
     if (phase is! VoteInputPhase) {
-      return false;
+      return _rejectVote(
+        'vote_wrong_phase',
+        playerId: playerId,
+        entryId: entryId,
+        context: {'phase': phase.phase},
+      );
     }
 
     var voter = snapshot.players[playerId];
     if (voter == null) {
-      return false;
+      return _rejectVote(
+        'vote_unknown_player',
+        playerId: playerId,
+        entryId: entryId,
+      );
     }
     if (voter.role != SessionRole.player ||
         voter.state != PlayerSessionState.active) {
-      return false;
+      return _rejectVote(
+        'vote_player_not_active',
+        playerId: playerId,
+        entryId: entryId,
+        context: {
+          'role': voter.role.name,
+          'state': voter.state.name,
+        },
+      );
     }
 
     var round = _currentRound();
     if (round == null || phase.setIndex >= round.voteSets.length) {
-      return false;
+      return _rejectVote(
+        'vote_round_or_set_missing',
+        playerId: playerId,
+        entryId: entryId,
+        context: {'setIndex': phase.setIndex},
+      );
     }
     if (phase.setSuperlatives.isEmpty) {
-      return false;
+      return _rejectVote(
+        'vote_set_has_no_prompts',
+        playerId: playerId,
+        entryId: entryId,
+        context: {'setIndex': phase.setIndex},
+      );
     }
 
     var currentPromptIndex = phase.promptIndexByPlayer[playerId] ?? 0;
     if (currentPromptIndex >= phase.setSuperlatives.length) {
-      return false;
+      return _rejectVote(
+        'vote_prompt_index_complete',
+        playerId: playerId,
+        entryId: entryId,
+        context: {
+          'promptIndex': currentPromptIndex,
+          'promptCount': phase.setSuperlatives.length,
+        },
+      );
     }
 
     Entry? targetEntry;
@@ -331,7 +389,11 @@ class GameEngine {
     }
 
     if (targetEntry == null) {
-      return false;
+      return _rejectVote(
+        'vote_entry_not_found',
+        playerId: playerId,
+        entryId: entryId,
+      );
     }
 
     if (!SuperlativesValidation.canPlayerVoteForEntry(
@@ -346,7 +408,17 @@ class GameEngine {
           targetEntry.ownerPlayerId == voter.playerId &&
           targetEntry.status == EntryStatus.active;
       if (!canOverrideSelfVote) {
-        return false;
+        return _rejectVote(
+          'vote_not_allowed_for_entry',
+          playerId: playerId,
+          entryId: entryId,
+          context: {
+            'allowSelfVote': snapshot.config.allowSelfVote,
+            'targetOwnerPlayerId': targetEntry.ownerPlayerId,
+            'activeEntryCount': activeEntryCount,
+            'targetEntryStatus': targetEntry.status.name,
+          },
+        );
       }
     }
 

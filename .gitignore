@@ -6,3 +6,6 @@
 build/
 
 app/
+
+media/
+.gitignore
