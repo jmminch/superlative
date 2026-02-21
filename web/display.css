@@ -13,7 +13,11 @@
 }
 
 body.display-client {
+  height: 100vh;
   min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
   color: var(--display-text);
   background:
     radial-gradient(1300px 700px at 8% -5%, rgba(120, 255, 200, 0.22), transparent 48%),
@@ -81,11 +85,18 @@ body.display-client #header-title {
 }
 
 body.display-client #app {
+  width: min(1680px, 100%);
   max-width: 1680px;
+  box-sizing: border-box;
+  margin: 0 auto;
   padding: 20px 26px 28px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 body.display-client .screen {
+  box-sizing: border-box;
+  height: 100%;
   border: 1px solid var(--display-border);
   border-radius: 22px;
   background:
@@ -94,7 +105,13 @@ body.display-client .screen {
   box-shadow: var(--display-shadow);
   transform: translateY(0);
   opacity: 1;
+  overflow: auto;
   transition: opacity 360ms ease, transform 360ms ease;
+}
+
+body.display-client .screen.active {
+  display: flex;
+  flex-direction: column;
 }
 
 body.display-client .screen.screen-enter {
@@ -161,7 +178,10 @@ body.display-client button.secondary {
 }
 
 body.display-client #footer-actions {
+  width: min(1680px, 100%);
   max-width: 1680px;
+  box-sizing: border-box;
+  margin: 0 auto;
   padding: 10px 26px 24px;
 }
 
@@ -293,7 +313,6 @@ body.display-client .reveal-metrics {
 body.display-client #reveal-list,
 body.display-client #round-summary-board,
 body.display-client #game-summary-board {
-  max-height: 52vh;
   overflow-y: auto;
 }
 

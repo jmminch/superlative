@@ -1051,7 +1051,7 @@ function renderVoteReveal(payload) {
       return;
     }
     revealList.innerHTML = `
-      <p class="reveal-stage-label">Round standings after this reveal</p>
+      <p class="reveal-stage-label">ROUND STANDINGS</p>
       ${renderRoundStandings(entries, aggregateResults, roundPointsByEntry)}
     `;
     scheduleAutoScroll('reveal-list');
