@@ -139,11 +139,14 @@ body.display-client input[type='text'] {
 }
 
 body.display-client .card-list {
+  display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
-body.display-client #lobby-player-list {
+body.display-client #lobby-player-list,
+body.display-client #entry-player-progress,
+body.display-client #vote-player-progress {
   grid-template-columns: repeat(4, 390px);
   grid-auto-flow: row;
   justify-content: start;
@@ -321,6 +324,10 @@ body.display-client #reveal-list {
 }
 
 body.display-client #round-summary-board {
+  grid-template-columns: 1fr;
+}
+
+body.display-client #game-summary-board {
   grid-template-columns: 1fr;
 }
 
@@ -679,7 +686,9 @@ body.display-client .podium-score {
     padding: 14px;
   }
 
-  body.display-client #lobby-player-list {
+  body.display-client #lobby-player-list,
+  body.display-client #entry-player-progress,
+  body.display-client #vote-player-progress {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
