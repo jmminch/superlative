@@ -495,6 +495,52 @@ function renderRoundStandings(entries, results, roundPointsByEntry) {
   }).join('');
 }
 
+function normalizeRevealPromptResults(reveal) {
+  let promptResults = Array.isArray(reveal && reveal.promptResults)
+    ? reveal.promptResults.slice()
+    : [];
+
+  promptResults.sort(function (a, b) {
+    let aIndex = Number(a && a.promptIndex);
+    let bIndex = Number(b && b.promptIndex);
+    if (!Number.isFinite(aIndex) || !Number.isFinite(bIndex)) {
+      return 0;
+    }
+    return aIndex - bIndex;
+  });
+  return promptResults;
+}
+
+function combinePromptResults(promptResults) {
+  let combined = {
+    voteCountByEntry: {},
+    pointsByEntry: {},
+    pointsByPlayer: {},
+  };
+
+  (promptResults || []).forEach(function (prompt) {
+    let results = (prompt && prompt.results) || {};
+    let voteCountByEntry = results.voteCountByEntry || {};
+    let pointsByEntry = results.pointsByEntry || {};
+    let pointsByPlayer = results.pointsByPlayer || {};
+
+    Object.keys(voteCountByEntry).forEach(function (entryId) {
+      combined.voteCountByEntry[entryId] =
+        (combined.voteCountByEntry[entryId] || 0) + Number(voteCountByEntry[entryId] || 0);
+    });
+    Object.keys(pointsByEntry).forEach(function (entryId) {
+      combined.pointsByEntry[entryId] =
+        (combined.pointsByEntry[entryId] || 0) + Number(pointsByEntry[entryId] || 0);
+    });
+    Object.keys(pointsByPlayer).forEach(function (playerId) {
+      combined.pointsByPlayer[playerId] =
+        (combined.pointsByPlayer[playerId] || 0) + Number(pointsByPlayer[playerId] || 0);
+    });
+  });
+
+  return combined;
+}
+
 function renderBoard(rows) {
   let html = '';
   rows.forEach(function (r, index) {
@@ -920,31 +966,61 @@ function renderVoteInput(payload) {
 function renderVoteReveal(payload) {
   let reveal = payload.reveal || {};
   let entries = reveal.entries || [];
-  let results = reveal.results || {};
+  let promptResults = normalizeRevealPromptResults(reveal);
+  let aggregateResults = combinePromptResults(promptResults);
   let roundPointsByEntry = reveal.roundPointsByEntry || {};
   let revealList = byId('reveal-list');
-  let prompt = reveal.promptText || '';
+  let revealPrompt = byId('reveal-prompt');
   let renderToken = ++voteRevealRenderToken;
+  let perPromptDelayMs = 2200;
 
   clearVoteRevealTimers();
   clearAutoScrollTasks();
 
-  byId('reveal-prompt').textContent = prompt;
-  revealList.innerHTML = `
-    <p class="reveal-stage-label">Top entries for this superlative</p>
-    ${renderRevealTopThree(entries, results)}
-  `;
+  function renderPromptStage(promptRow) {
+    let promptText = promptRow && promptRow.promptText ? promptRow.promptText : '';
+    let promptResults = promptRow && promptRow.results ? promptRow.results : {};
+    revealPrompt.textContent = promptText;
+    revealList.innerHTML = `
+      <p class="reveal-stage-label">Top entries for this superlative</p>
+      ${renderRevealTopThree(entries, promptResults)}
+    `;
+  }
 
+  if (promptResults.length) {
+    renderPromptStage(promptResults[0]);
+  } else {
+    revealPrompt.textContent = '';
+    revealList.innerHTML = `
+      <p class="reveal-stage-label">No reveal prompt results available.</p>
+    `;
+  }
+
+  promptResults.forEach(function (promptRow, index) {
+    if (index === 0) {
+      return;
+    }
+    let timer = setTimeout(function () {
+      if (renderToken !== voteRevealRenderToken) {
+        return;
+      }
+      renderPromptStage(promptRow);
+    }, index * perPromptDelayMs);
+    voteRevealTimers.push(timer);
+  });
+
+  let standingsDelayMs = Math.max(1, promptResults.length) * perPromptDelayMs;
   let transitionTimer = setTimeout(function () {
     if (renderToken !== voteRevealRenderToken) {
       return;
     }
+    revealPrompt.textContent = `Set ${Number(reveal.setIndex || 0) + 1} results`;
     revealList.innerHTML = `
       <p class="reveal-stage-label">Round standings after this reveal</p>
-      ${renderRoundStandings(entries, results, roundPointsByEntry)}
+      ${renderRoundStandings(entries, aggregateResults, roundPointsByEntry)}
     `;
     scheduleAutoScroll('reveal-list');
-  }, 2200);
+  }, standingsDelayMs);
   voteRevealTimers.push(transitionTimer);
 }
 
@@ -1185,12 +1261,36 @@ function createDebugStateByPhase() {
     VoteReveal: mergeObjects(shared, {
       phase: 'VoteReveal',
       reveal: {
-        promptText: prompts[1].promptText,
         entries: entries,
-        results: {
-          voteCountByEntry: { e1: 4, e2: 2, e3: 1, e4: 0 },
-          pointsByEntry: { e1: 12, e2: 6, e3: 3, e4: 0 },
-        },
+        promptResults: [
+          {
+            promptIndex: 0,
+            superlativeId: prompts[0].superlativeId,
+            promptText: prompts[0].promptText,
+            results: {
+              voteCountByEntry: { e1: 4, e2: 2, e3: 1, e4: 0 },
+              pointsByEntry: { e1: 12, e2: 6, e3: 3, e4: 0 },
+            },
+          },
+          {
+            promptIndex: 1,
+            superlativeId: prompts[1].superlativeId,
+            promptText: prompts[1].promptText,
+            results: {
+              voteCountByEntry: { e1: 2, e2: 3, e3: 1, e4: 0 },
+              pointsByEntry: { e1: 6, e2: 9, e3: 3, e4: 0 },
+            },
+          },
+          {
+            promptIndex: 2,
+            superlativeId: prompts[2].superlativeId,
+            promptText: prompts[2].promptText,
+            results: {
+              voteCountByEntry: { e1: 1, e2: 3, e3: 2, e4: 0 },
+              pointsByEntry: { e1: 3, e2: 9, e3: 6, e4: 0 },
+            },
+          },
+        ],
         roundPointsByEntry: { e1: 21, e2: 17, e3: 12, e4: 8 },
       },
     }),

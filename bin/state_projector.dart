@@ -215,6 +215,10 @@ class StateProjector {
         'superlativeId': phase.superlativeId,
         'promptText': phase.promptText,
         'entries': _entriesView(snapshot, round, includeOwner: false),
+        'promptResults': _voteRevealPromptResults(
+          round: round,
+          phase: phase,
+        ),
         'roundPointsByEntry':
             round?.roundPointsByEntry ?? const <String, int>{},
         'results': {
@@ -497,5 +501,63 @@ class StateProjector {
       pointsByPlayer[owner] = (pointsByPlayer[owner] ?? 0) + entry.value;
     }
     return pointsByPlayer;
+  }
+
+  List<Map<String, dynamic>> _voteRevealPromptResults({
+    required RoundInstance? round,
+    required VoteRevealPhase phase,
+  }) {
+    if (round == null ||
+        phase.setIndex < 0 ||
+        phase.setIndex >= round.voteSets.length) {
+      return _fallbackVoteRevealPromptResults(phase);
+    }
+
+    var prompts = round.voteSets[phase.setIndex].prompts;
+    if (prompts.isEmpty) {
+      return _fallbackVoteRevealPromptResults(phase);
+    }
+
+    var rows = prompts.map((prompt) {
+      var results = prompt.results;
+      return <String, dynamic>{
+        'promptIndex': prompt.promptIndex,
+        'superlativeId': prompt.superlativeId,
+        'promptText': prompt.promptText,
+        'results': {
+          'voteCountByEntry': results?.voteCountByEntry ?? const <String, int>{},
+          'pointsByEntry': results?.pointsByEntry ?? const <String, int>{},
+          'pointsByPlayer': results?.pointsByPlayer ?? const <String, int>{},
+        },
+      };
+    }).toList(growable: false);
+
+    rows.sort((a, b) =>
+        (a['promptIndex'] as int).compareTo(b['promptIndex'] as int));
+    return rows;
+  }
+
+  List<Map<String, dynamic>> _fallbackVoteRevealPromptResults(
+      VoteRevealPhase phase) {
+    var prompts = phase.setSuperlatives;
+    if (prompts.isEmpty) {
+      return const [];
+    }
+
+    return prompts.asMap().entries.map((entry) {
+      var prompt = entry.value;
+      var index = entry.key;
+      var results = index == 0 ? phase.results : null;
+      return <String, dynamic>{
+        'promptIndex': index,
+        'superlativeId': prompt.superlativeId,
+        'promptText': prompt.promptText,
+        'results': {
+          'voteCountByEntry': results?.voteCountByEntry ?? const <String, int>{},
+          'pointsByEntry': results?.pointsByEntry ?? const <String, int>{},
+          'pointsByPlayer': results?.pointsByPlayer ?? const <String, int>{},
+        },
+      };
+    }).toList(growable: false);
   }
 }

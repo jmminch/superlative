@@ -292,26 +292,69 @@ void main() {
         superlativeId: 's1',
         promptText: 'Cutest',
         roundSuperlatives: const [
-          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest'),
+          SuperlativePrompt(superlativeId: 's2', promptText: 'Bravest'),
         ],
         results: VoteResults(
-          voteCountByEntry: const {'e1': 1, 'e2': 1},
-          pointsByEntry: const {'e1': 500, 'e2': 500},
-          pointsByPlayer: const {'p1': 500, 'p2': 500},
+          voteCountByEntry: const {'e1': 2, 'e2': 2},
+          pointsByEntry: const {'e1': 900, 'e2': 1100},
+          pointsByPlayer: const {'p1': 900, 'p2': 1100},
         ),
         setSuperlatives: const [
-          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest'),
+          SuperlativePrompt(superlativeId: 's2', promptText: 'Bravest'),
         ],
         endsAt: _baseNow.add(const Duration(seconds: 10)),
       );
 
-      var snapshot = _snapshotForPhase(phase);
+      var snapshot = _snapshotForPhase(
+        phase,
+        round: _round(
+          setPrompts: [
+            VotePromptState(
+              promptIndex: 0,
+              superlativeId: 's1',
+              promptText: 'Cutest',
+              votesByPlayer: const {'p1': 'e1', 'p2': 'e2'},
+              results: VoteResults(
+                voteCountByEntry: const {'e1': 1, 'e2': 1},
+                pointsByEntry: const {'e1': 500, 'e2': 500},
+                pointsByPlayer: const {'p1': 500, 'p2': 500},
+              ),
+            ),
+            VotePromptState(
+              promptIndex: 1,
+              superlativeId: 's2',
+              promptText: 'Bravest',
+              votesByPlayer: const {'p1': 'e1', 'p2': 'e2'},
+              results: VoteResults(
+                voteCountByEntry: const {'e1': 1, 'e2': 1},
+                pointsByEntry: const {'e1': 400, 'e2': 600},
+                pointsByPlayer: const {'p1': 400, 'p2': 600},
+              ),
+            ),
+          ],
+        ),
+      );
       var displayPayload = projector.projectForDisplay(snapshot: snapshot);
 
       expect(displayPayload['phase'], 'VoteReveal');
       expect(displayPayload['reveal'], isNotNull);
       expect(displayPayload['reveal']['results']['pointsByPlayer'],
-          {'p1': 500, 'p2': 500});
+          {'p1': 900, 'p2': 1100});
+      var promptResults =
+          displayPayload['reveal']['promptResults'] as List<dynamic>;
+      expect(promptResults.length, 2);
+      expect(promptResults[0]['promptText'], 'Cutest');
+      expect(
+        promptResults[0]['results']['pointsByEntry'],
+        {'e1': 500, 'e2': 500},
+      );
+      expect(promptResults[1]['promptText'], 'Bravest');
+      expect(
+        promptResults[1]['results']['pointsByEntry'],
+        {'e1': 400, 'e2': 600},
+      );
       expect(displayPayload['reveal']['roundPointsByEntry'],
           {'e1': 500, 'e2': 250});
       var revealEntries = displayPayload['reveal']['entries'] as List<dynamic>;
