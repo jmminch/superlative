@@ -1,6 +1,7 @@
 categories:
   - id: animal
-    label: Animal
+    label: animal
+    labelPlural: Animals
     superlatives:
       - Cutest
       - Biggest
@@ -13,9 +14,24 @@ categories:
       - Most common
       - Most likely to be found in your neighborhood
       - Best college mascot
+      - Smartest
+      - Dumbest
+      - Most graceful
+      - Ugliest
+      - Loudest
+      - Most loyal
+      - Most likely to steal your food
+      - Most unpredicatable
+      - Most likely to become famous online
+      - Most likely to win a fight with a human
+      - Best cartoon character
+      - Most likely to be plotting against you
+      - Most huggable
+      - Creepiest
 
   - id: food
-    label: Food
+    label: food
+    labelPlural: Foods
     superlatives:
       - Tastiest
       - Worst-tasting
@@ -27,9 +43,21 @@ categories:
       - Strongest-smelling
       - Messiest to eat in a car
       - Best road trip snack
+      - Most likely to disappear first from the table
+      - Most likely to be eaten at 2 AM
+      - Worst to eat with your hands
+      - Most likely to cause an allergic reaction
+      - Most likely to be binge eaten
+      - Messiest
+      - Most controversial
+      - Best party food
+      - Most likely to go bad
+      - Most expensive at a restaurant
+      - Easiest to make
 
   - id: movie
-    label: Movie
+    label: movie
+    labelPlural: Movies
     superlatives:
       - Most quotable
       - Most likely to make you cry
@@ -41,9 +69,21 @@ categories:
       - Least interesting
       - Most popular
       - Least well-known
+      - Most rewatchable
+      - Best soundtrack
+      - Best ending
+      - Most confusing
+      - Most classic
+      - Most surprising
+      - Best to watch with friends
+      - Best for a rainy day
+      - Most likely to put you to sleep
+      - Most sequels
+      - Most likely to be remade
 
   - id: place
-    label: Place
+    label: place
+    labelPlural: Places
     superlatives:
       - Best vacation spot
       - Worst vacation spot
@@ -54,9 +94,22 @@ categories:
       - Most crowded
       - Quietest
       - Most likely to have great food
+      - Most expensive to visit
+      - Most stressful
+      - Most scenic
+      - Most historic
+      - Most modern
+      - Most likely to be crowded
+      - Best place to live
+      - Worst place to live
+      - Best place for photos
+      - Worst weather
+      - Most likely to be on a postcard
+      - Closest to home
 
   - id: garage
-    label: Thing found in a garage
+    label: thing found in a garage
+    labelPlural: Things found in a garage
     superlatives:
       - Most likely to cause a minor injury
       - Most used
@@ -70,9 +123,10 @@ categories:
 
   - id: villain
     label: Villain
+    labelPlural: Villains
     superlatives:
       - Most misunderstood
-      - Most likely to win
+      - Most likely to take over the world
       - Most petty
       - Most stylish
       - Most intimidating
@@ -80,9 +134,13 @@ categories:
       - Most tragic backstory
       - Most evil
       - Most comical
+      - Happiest
+      - Most henchmen
+      - Least stereotypical
 
   - id: famous_people
     label: Famous person
+    labelPlural: Famous people
     superlatives:
       - Best choice for President
       - Most likely to survive a zombie attack
@@ -93,9 +151,18 @@ categories:
       - Most likely to start a trend
       - Most recognizable voice
       - Most likely to win a trivia contest
+      - Most hair
+      - Most likely to be an embarrasing meme
+      - Tallest
+      - Shortest
+      - Best in a crisis
+      - Most likely to be incognito
+      - Most likely to be in a bad movie
+      - Most likely to be forgotten in 50 years
     
   - id: hobby
     label: Hobby
+    labelPlural: Hobbies
     superlatives:
       - Most expensive
       - Cheapest
@@ -106,3 +173,66 @@ categories:
       - Most boring
       - Hardest
       - Easiest
+      - Most dangerous
+      - Least useful
+
+  - id: family_members
+    label: person in your family
+    labelPlural: People In Your Family
+    superlatives:
+      - Tallest
+      - Shortest
+      - Best choice for President
+      - Most likely to survive a zombie attack
+      - Most famous
+      - Most likely to start a trend
+      - Most recognizable voice
+      - Most likely to win a trivia contest
+      - Most hair
+      - Best in a crisis
+      - Most likely to end up on America's Funniest Home Videos
+      - Worst cook
+      - Most likely to get lost in their hometown
+  
+  - id: things_you_wear
+    label: thing you wear
+    labelPlural: Things You Wear
+    superlatives:
+      - Most comfortable
+      - Least comfortable
+      - Most stylish
+      - Least stylish
+      - Most expensive
+      - Cheapest
+      - Most formal
+      - Most casual
+      - Most seasonal
+      - Most likely to get compliments
+      - Most likely to be forgotten at home
+      - Most likely to be lost
+      - Most likely to be borrowed by someone else
+      - Most likely to be replaced often
+      - Most likely to be seen on a dummy
+      - Most likely to not fit
+
+  - id: states
+    label: state
+    labelPlural: States
+    superlatives:
+      - Most beautiful
+      - Most boring
+      - Most fun to visit
+      - Best place to live
+      - Worst place to live
+      - Most unique
+      - Best weather
+      - Worst weather
+      - Most urban
+      - Most outdoorsy
+      - Best food
+      - Most recognizable shape
+      - Most likely to have state pride
+      - Most likely to be in the news
+      - Most likely to be forgotten
+      - Most likely to be visited once but not twice
+      - Least likely to be known outside the U.S.
