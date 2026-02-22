@@ -1086,7 +1086,7 @@ function renderGameStarting(payload) {
 
 function renderRoundIntro(payload) {
   byId('round-title').textContent = `Round ${Number(payload.round.roundIndex || 0) + 1}`;
-  byId('round-category').textContent = `${payload.round.categoryLabel}`;
+  byId('round-category').textContent = `${displayCategoryLabel(payload.round)}`;
   byId('round-superlatives').innerHTML = renderPromptStrip(payload.round.superlatives || []);
 }
 
@@ -1094,7 +1094,7 @@ function renderEntryInput(payload) {
   let submitted = payload.round && payload.round.submittedPlayerIds
     ? payload.round.submittedPlayerIds
     : [];
-  byId('entry-category').textContent = `${payload.round.categoryLabel}`;
+  byId('entry-category').textContent = `${displayCategoryLabel(payload.round)}`;
   renderPromptStripIfChanged('entry-superlatives', payload.round.superlatives || []);
   reconcileProgressCards(
     'entry-player-progress',
@@ -1110,7 +1110,7 @@ function renderVoteInput(payload) {
   let completed = payload.round && payload.round.completedPlayerIds
     ? payload.round.completedPlayerIds
     : [];
-  byId('vote-category').textContent = `${payload.round && payload.round.categoryLabel ? payload.round.categoryLabel : '-'}`;
+  byId('vote-category').textContent = `${displayCategoryLabel(payload.round) || '-'}`;
   renderPromptStripIfChanged(
     'vote-superlatives',
     payload.round && payload.round.setSuperlatives ? payload.round.setSuperlatives : []
@@ -1263,6 +1263,16 @@ function startGameSummaryReveal() {
     }, step.delayMs);
     gameSummaryRevealTimers.push(timer);
   });
+}
+
+function displayCategoryLabel(round) {
+  if (!round) {
+    return '';
+  }
+  if (round.categoryLabelPlural) {
+    return round.categoryLabelPlural;
+  }
+  return round.categoryLabel || '';
 }
 
 const phaseControllers = {

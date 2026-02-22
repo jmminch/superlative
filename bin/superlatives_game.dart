@@ -215,6 +215,8 @@ class RoundInstance {
   final String roundId;
   final String categoryId;
   final String categoryLabel;
+  final String categoryLabelSingular;
+  final String categoryLabelPlural;
   final List<Entry> entries;
   final List<VotePhase> votePhases;
   final List<VoteSet> voteSets;
@@ -226,6 +228,8 @@ class RoundInstance {
     required this.roundId,
     required this.categoryId,
     required this.categoryLabel,
+    String? categoryLabelSingular,
+    String? categoryLabelPlural,
     required List<Entry> entries,
     required List<VotePhase> votePhases,
     List<VoteSet>? voteSets,
@@ -233,6 +237,8 @@ class RoundInstance {
     Map<String, int>? roundPointsByPlayerPending,
     this.status = RoundStatus.pending,
   })  : entries = List.unmodifiable(List.of(entries)),
+        categoryLabelSingular = (categoryLabelSingular ?? categoryLabel).trim(),
+        categoryLabelPlural = (categoryLabelPlural ?? categoryLabel).trim(),
         votePhases = List.unmodifiable(List.of(votePhases)),
         voteSets = List.unmodifiable(List.of(voteSets ?? const [])),
         roundPointsByEntry =
@@ -241,7 +247,9 @@ class RoundInstance {
             UnmodifiableMapView(Map.of(roundPointsByPlayerPending ?? const {})),
         assert(roundId != ''),
         assert(categoryId != ''),
-        assert(categoryLabel != '');
+        assert(categoryLabel != ''),
+        assert((categoryLabelSingular ?? categoryLabel).trim().isNotEmpty),
+        assert((categoryLabelPlural ?? categoryLabel).trim().isNotEmpty);
 }
 
 class GameInstance {
@@ -538,6 +546,56 @@ class SuperlativesValidation {
   static String normalizeEntryText(String raw) {
     var normalized = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
     return normalized;
+  }
+
+  static String canonicalEntryKey(String raw) {
+    var normalized = normalizeEntryText(raw).toLowerCase();
+    // Treat punctuation differences as equivalent for duplicate detection.
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), '');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return normalized;
+  }
+
+  static int levenshteinDistance(String a, String b) {
+    if (a == b) {
+      return 0;
+    }
+    if (a.isEmpty) {
+      return b.length;
+    }
+    if (b.isEmpty) {
+      return a.length;
+    }
+
+    var previous = List<int>.generate(b.length + 1, (i) => i);
+    var current = List<int>.filled(b.length + 1, 0);
+
+    for (var i = 1; i <= a.length; i++) {
+      current[0] = i;
+      var aChar = a.codeUnitAt(i - 1);
+      for (var j = 1; j <= b.length; j++) {
+        var cost = aChar == b.codeUnitAt(j - 1) ? 0 : 1;
+        var insertion = current[j - 1] + 1;
+        var deletion = previous[j] + 1;
+        var substitution = previous[j - 1] + cost;
+        var best = insertion < deletion ? insertion : deletion;
+        current[j] = substitution < best ? substitution : best;
+      }
+      var tmp = previous;
+      previous = current;
+      current = tmp;
+    }
+
+    return previous[b.length];
+  }
+
+  static double normalizedSimilarity(String a, String b) {
+    var maxLen = a.length > b.length ? a.length : b.length;
+    if (maxLen == 0) {
+      return 1;
+    }
+    var distance = levenshteinDistance(a, b);
+    return 1 - (distance / maxLen);
   }
 
   static ValidationResult validateEntryText(String raw,

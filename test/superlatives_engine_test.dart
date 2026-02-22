@@ -211,6 +211,118 @@ void main() {
     });
   });
 
+  group('Entry constraints', () {
+    test('rejects duplicate entry text from a different player', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(31),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'RACCOON'), isTrue);
+
+      expect(engine.submitEntry(playerId: 'p2', text: 'RACCOON'), isFalse);
+      expect(engine.lastRejectReasonCode, 'entry_duplicate_exact');
+    });
+
+    test('rejects duplicate entry with case/punctuation differences', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(32),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'Raccoon!'), isTrue);
+
+      expect(engine.submitEntry(playerId: 'p2', text: '  raccoon  '), isFalse);
+      expect(engine.lastRejectReasonCode, 'entry_duplicate_exact');
+    });
+
+    test('rejects near-duplicate entry with minor typo', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(33),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'foods',
+          firstRoundCategoryLabel: 'Foods',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(
+          engine.submitEntry(playerId: 'p1', text: 'Chocolate cake'), isTrue);
+
+      expect(
+          engine.submitEntry(playerId: 'p2', text: 'Choclate cake'), isFalse);
+      expect(engine.lastRejectReasonCode, 'entry_duplicate_near');
+    });
+
+    test('allows entries below near-duplicate similarity threshold', () {
+      var machine = RoomStateMachine(
+        snapshot: _baseSnapshot(),
+        now: () => _now,
+      );
+      var engine = GameEngine(
+        stateMachine: machine,
+        random: Random(34),
+        now: () => _now,
+      );
+
+      expect(
+        engine.startGame(
+          hostPlayerId: 'p1',
+          firstRoundCategoryId: 'animals',
+          firstRoundCategoryLabel: 'Animals',
+          firstRoundSuperlatives: _roundPrompts(),
+        ),
+        isTrue,
+      );
+      expect(engine.openEntryInput(), isTrue);
+      expect(engine.submitEntry(playerId: 'p1', text: 'Raccoon'), isTrue);
+
+      // Similar but below conservative threshold.
+      expect(engine.submitEntry(playerId: 'p2', text: 'Racoon'), isTrue);
+    });
+  });
+
   group('Vote constraints', () {
     test('rejects vote for unknown entry', () {
       var machine = RoomStateMachine(

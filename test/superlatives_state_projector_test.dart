@@ -344,13 +344,75 @@ void main() {
       );
 
       var playerPayload =
-          projector.projectForPlayer(playerId: 'p1', snapshot: snapshot);
+          projector.projectForPlayer(playerId: 'p2', snapshot: snapshot);
       var displayPayload = projector.projectForDisplay(snapshot: snapshot);
 
       var playerEntries = playerPayload['vote']['entries'] as List<dynamic>;
       var displayEntries = displayPayload['vote']['entries'] as List<dynamic>;
       expect(playerEntries.map((e) => e['entryId']), equals(['e1']));
       expect(displayEntries.map((e) => e['entryId']), equals(['e1', 'e2']));
+    });
+
+    test(
+        'player VoteInput projection excludes self entry when self-vote disabled',
+        () {
+      var phase = VoteInputPhase(
+        roundIndex: 0,
+        roundId: 'round_1',
+        voteIndex: 0,
+        superlativeId: 's1',
+        promptText: 'Cutest',
+        roundSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        endsAt: _baseNow.add(const Duration(seconds: 20)),
+        votesByPlayer: const {},
+        setSuperlatives: const [
+          SuperlativePrompt(superlativeId: 's1', promptText: 'Cutest')
+        ],
+        promptIndexByPlayer: const {},
+      );
+      var snapshot = SuperlativesRoomSnapshot(
+        roomCode: 'ABCD',
+        hostPlayerId: 'p1',
+        config: const RoomConfig(minPlayersToStart: 2, allowSelfVote: false),
+        players: const {
+          'p1': PlayerSession(
+            playerId: 'p1',
+            displayName: 'ALPHA',
+            state: PlayerSessionState.active,
+          ),
+          'p2': PlayerSession(
+            playerId: 'p2',
+            displayName: 'BETA',
+            state: PlayerSessionState.active,
+          ),
+          'd1': PlayerSession(
+            playerId: 'd1',
+            displayName: 'DISPLAY',
+            role: SessionRole.display,
+            state: PlayerSessionState.active,
+          ),
+        },
+        currentGame: GameInstance(
+          gameId: 'g1',
+          roundIndex: 0,
+          rounds: [_round()],
+          scoreboard: const {'p1': 0, 'p2': 0},
+        ),
+        phase: phase,
+        updatedAt: _baseNow,
+      );
+
+      var p1Payload =
+          projector.projectForPlayer(playerId: 'p1', snapshot: snapshot);
+      var p2Payload =
+          projector.projectForPlayer(playerId: 'p2', snapshot: snapshot);
+      var p1Entries = p1Payload['vote']['entries'] as List<dynamic>;
+      var p2Entries = p2Payload['vote']['entries'] as List<dynamic>;
+
+      expect(p1Entries.map((e) => e['entryId']), equals(['e2']));
+      expect(p2Entries.map((e) => e['entryId']), equals(['e1']));
     });
 
     test('display projection includes reveal results and leaderboard', () {

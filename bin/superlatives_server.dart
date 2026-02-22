@@ -155,10 +155,7 @@ class SuperlativesServer {
         var handled = room.handleEvent(playerId: sessionId, event: event);
         if (!handled) {
           room.logRejectedEvent(playerId: sessionId, event: event);
-          sendError(const ProtocolError(
-            code: 'event_rejected',
-            message: 'Event was rejected for current state/permissions.',
-          ));
+          sendError(room.errorForRejectedEvent(event));
           continue;
         }
 
@@ -439,7 +436,10 @@ class RoomRuntime {
       if (handled) {
         _resetMissedActions(playerId);
       } else {
-        _setLastReject('submit_entry_rejected');
+        _setLastReject(
+          engine.lastRejectReasonCode ?? 'submit_entry_rejected',
+          engine.lastRejectContext,
+        );
       }
     } else if (event is SubmitVoteEvent) {
       handled = engine.submitVote(playerId: playerId, entryId: event.entryId);
@@ -483,6 +483,42 @@ class RoomRuntime {
     }
 
     return handled;
+  }
+
+  ProtocolError errorForRejectedEvent(ClientEvent event) {
+    if (lastRejectReasonCode == 'entry_duplicate_exact') {
+      return ProtocolError(
+        code: 'duplicate_entry',
+        message: 'Someone already entered that. Try a different entry.',
+        details: {
+          'reason': lastRejectReasonCode,
+          ...Map<String, dynamic>.from(lastRejectContext),
+          'event': event.kind.name,
+        },
+      );
+    }
+    if (lastRejectReasonCode == 'entry_duplicate_near') {
+      return ProtocolError(
+        code: 'duplicate_entry',
+        message:
+            'That entry is too similar to one already submitted. Try a different entry.',
+        details: {
+          'reason': lastRejectReasonCode,
+          ...Map<String, dynamic>.from(lastRejectContext),
+          'event': event.kind.name,
+        },
+      );
+    }
+
+    return ProtocolError(
+      code: 'event_rejected',
+      message: 'Event was rejected for current state/permissions.',
+      details: {
+        'reason': lastRejectReasonCode,
+        ...Map<String, dynamic>.from(lastRejectContext),
+        'event': event.kind.name,
+      },
+    );
   }
 
   void logRejectedEvent({
@@ -555,6 +591,8 @@ class RoomRuntime {
       hostPlayerId: hostPlayerId,
       firstRoundCategoryId: roundContent.categoryId,
       firstRoundCategoryLabel: roundContent.categoryLabel,
+      firstRoundCategoryLabelSingular: roundContent.categoryLabelSingular,
+      firstRoundCategoryLabelPlural: roundContent.categoryLabelPlural,
       firstRoundSuperlatives: roundContent.superlatives,
       gameStartingEndsAt:
           DateTime.now().add(Duration(seconds: gameStartingSeconds)),
@@ -600,6 +638,8 @@ class RoomRuntime {
     return engine.completeRound(
       nextCategoryId: nextRound.categoryId,
       nextCategoryLabel: nextRound.categoryLabel,
+      nextCategoryLabelSingular: nextRound.categoryLabelSingular,
+      nextCategoryLabelPlural: nextRound.categoryLabelPlural,
       nextRoundSuperlatives: nextRound.superlatives,
     );
   }

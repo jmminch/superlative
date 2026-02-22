@@ -17,19 +17,33 @@ class ContentValidationException implements Exception {
 class CategoryContent {
   final String id;
   final String label;
+  final String labelSingular;
+  final String labelPlural;
   final List<SuperlativePrompt> superlatives;
 
   CategoryContent({
     required this.id,
     required this.label,
+    String? labelSingular,
+    String? labelPlural,
     required List<SuperlativePrompt> superlatives,
-  }) : superlatives = List.unmodifiable(List.of(superlatives)) {
+  })  : labelSingular = (labelSingular ?? label).trim(),
+        labelPlural = (labelPlural ?? label).trim(),
+        superlatives = List.unmodifiable(List.of(superlatives)) {
     if (id.trim().isEmpty) {
       throw const ContentValidationException('Category id must not be empty.');
     }
     if (label.trim().isEmpty) {
       throw const ContentValidationException(
           'Category label must not be empty.');
+    }
+    if (this.labelSingular.isEmpty) {
+      throw const ContentValidationException(
+          'Category singular label must not be empty.');
+    }
+    if (this.labelPlural.isEmpty) {
+      throw const ContentValidationException(
+          'Category plural label must not be empty.');
     }
     if (superlatives.isEmpty) {
       throw const ContentValidationException(
@@ -41,13 +55,19 @@ class CategoryContent {
 class RoundContent {
   final String categoryId;
   final String categoryLabel;
+  final String categoryLabelSingular;
+  final String categoryLabelPlural;
   final List<SuperlativePrompt> superlatives;
 
   RoundContent({
     required this.categoryId,
     required this.categoryLabel,
+    String? categoryLabelSingular,
+    String? categoryLabelPlural,
     required List<SuperlativePrompt> superlatives,
-  }) : superlatives = List.unmodifiable(List.of(superlatives));
+  })  : categoryLabelSingular = (categoryLabelSingular ?? categoryLabel).trim(),
+        categoryLabelPlural = (categoryLabelPlural ?? categoryLabel).trim(),
+        superlatives = List.unmodifiable(List.of(superlatives));
 }
 
 abstract class ContentProvider {
@@ -100,6 +120,10 @@ class YamlContentProvider implements ContentProvider {
 
       var id = _readRequiredString(node, 'id', context: 'Category[$i]');
       var label = _readRequiredString(node, 'label', context: 'Category[$i]');
+      var labelSingular =
+          _readOptionalString(node, 'labelSingular', context: 'Category[$i]');
+      var labelPlural =
+          _readOptionalString(node, 'labelPlural', context: 'Category[$i]');
       if (categoryIds.contains(id)) {
         throw ContentValidationException('Duplicate category id "$id".');
       }
@@ -135,7 +159,13 @@ class YamlContentProvider implements ContentProvider {
       }
 
       categoryList.add(
-        CategoryContent(id: id, label: label, superlatives: prompts),
+        CategoryContent(
+          id: id,
+          label: label,
+          labelSingular: labelSingular,
+          labelPlural: labelPlural,
+          superlatives: prompts,
+        ),
       );
     }
 
@@ -195,6 +225,8 @@ class YamlContentProvider implements ContentProvider {
     return RoundContent(
       categoryId: category.id,
       categoryLabel: category.label,
+      categoryLabelSingular: category.labelSingular,
+      categoryLabelPlural: category.labelPlural,
       superlatives: prompts,
     );
   }
@@ -214,6 +246,29 @@ class YamlContentProvider implements ContentProvider {
     if (value.isEmpty) {
       throw ContentValidationException(
           '$context field "$key" must be non-empty.');
+    }
+
+    return value;
+  }
+
+  static String? _readOptionalString(
+    YamlMap map,
+    String key, {
+    required String context,
+  }) {
+    var raw = map[key];
+    if (raw == null) {
+      return null;
+    }
+    if (raw is! String) {
+      throw ContentValidationException(
+          '$context field "$key" must be a string.');
+    }
+
+    var value = raw.trim();
+    if (value.isEmpty) {
+      throw ContentValidationException(
+          '$context field "$key" must be non-empty when present.');
     }
 
     return value;

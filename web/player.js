@@ -103,6 +103,15 @@ function handleMessage(event) {
 
   if (envelope.event === 'error') {
     let payload = envelope.payload || {};
+    if (payload.code === 'duplicate_entry' &&
+        currentPayload &&
+        currentPayload.phase === 'EntryInput') {
+      byId('entry-note').textContent =
+        payload.message || 'Someone already entered that. Try a different entry.';
+      setVisible('entry-form', true);
+      byId('entry-submit').disabled = false;
+      return;
+    }
     showError(payload.message || 'Unknown server error.');
     return;
   }
@@ -292,6 +301,35 @@ function updateHeader(payload) {
   }
 }
 
+function singularCategoryLabel(round) {
+  if (!round) {
+    return '';
+  }
+  if (round.categoryLabelSingular) {
+    return String(round.categoryLabelSingular).trim();
+  }
+  if (round.categoryLabel) {
+    return String(round.categoryLabel).trim();
+  }
+  return '';
+}
+
+function indefiniteArticleFor(text) {
+  let firstLetterMatch = String(text || '').trim().match(/[A-Za-z]/);
+  if (!firstLetterMatch) {
+    return 'a';
+  }
+  return /^[AEIOUaeiou]$/.test(firstLetterMatch[0]) ? 'an' : 'a';
+}
+
+function entryTitleForRound(round) {
+  let singular = singularCategoryLabel(round);
+  if (!singular) {
+    return 'Submit Your Entry';
+  }
+  return `Enter ${indefiniteArticleFor(singular)} ${singular}`;
+}
+
 function renderState(payload, previousPayload) {
   currentPayload = previousPayload;
   updateHeader(payload);
@@ -307,6 +345,7 @@ function renderState(payload, previousPayload) {
       break;
 
     case 'EntryInput':
+      byId('entry-title').textContent = entryTitleForRound(payload.round);
       byId('entry-submit').disabled = !!payload.youSubmitted;
       byId('entry-note').textContent = payload.youSubmitted
         ? 'Your entry has been submitted.'

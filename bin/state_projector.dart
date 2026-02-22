@@ -78,10 +78,14 @@ class StateProjector {
     }
 
     if (phase is RoundIntroPhase) {
+      var categorySingular = _categoryLabelSingular(round, phase.categoryLabel);
+      var categoryPlural = _categoryLabelPlural(round, phase.categoryLabel);
       payload['round'] = {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'categoryLabel': phase.categoryLabel,
+        'categoryLabelSingular': categorySingular,
+        'categoryLabelPlural': categoryPlural,
         'superlatives': _superlativesList(phase.superlatives),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
         'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
@@ -90,10 +94,14 @@ class StateProjector {
     }
 
     if (phase is GameStartingPhase) {
+      var categorySingular = _categoryLabelSingular(round, phase.categoryLabel);
+      var categoryPlural = _categoryLabelPlural(round, phase.categoryLabel);
       payload['gameStarting'] = {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'categoryLabel': phase.categoryLabel,
+        'categoryLabelSingular': categorySingular,
+        'categoryLabelPlural': categoryPlural,
         'showInstructions': phase.showInstructions,
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
         'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
@@ -102,10 +110,14 @@ class StateProjector {
     }
 
     if (phase is EntryInputPhase) {
+      var categorySingular = _categoryLabelSingular(round, phase.categoryLabel);
+      var categoryPlural = _categoryLabelPlural(round, phase.categoryLabel);
       payload['round'] = {
         'roundIndex': phase.roundIndex,
         'roundId': phase.roundId,
         'categoryLabel': phase.categoryLabel,
+        'categoryLabelSingular': categorySingular,
+        'categoryLabelPlural': categoryPlural,
         'superlatives': _superlativesList(phase.superlatives),
         // Player identities stay hidden until round summary.
         'entries': const [],
@@ -127,6 +139,7 @@ class StateProjector {
     if (phase is VoteInputPhase) {
       var setPromptCount = phase.setSuperlatives.length;
       if (setPromptCount == 0) {
+        var fallbackCategory = round?.categoryLabel ?? '';
         payload['vote'] = {
           'roundId': phase.roundId,
           'voteIndex': phase.voteIndex,
@@ -137,13 +150,17 @@ class StateProjector {
             round,
             includeOwner: false,
             includeEliminated: role != 'player',
+            voter: role == 'player' ? viewer : null,
           ),
           'timeoutSeconds': _remainingSeconds(phase.endsAt),
           'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
         };
         payload['round'] = {
           'roundId': phase.roundId,
-          'categoryLabel': round?.categoryLabel ?? '',
+          'categoryLabel': fallbackCategory,
+          'categoryLabelSingular':
+              _categoryLabelSingular(round, fallbackCategory),
+          'categoryLabelPlural': _categoryLabelPlural(round, fallbackCategory),
           'currentSetIndex': phase.setIndex,
           'setPromptCount': 0,
           'setSuperlatives': const <Map<String, dynamic>>[],
@@ -177,13 +194,18 @@ class StateProjector {
           round,
           includeOwner: false,
           includeEliminated: role != 'player',
+          voter: role == 'player' ? viewer : null,
         ),
         'timeoutSeconds': _remainingSeconds(phase.endsAt),
         'timeoutAtMs': phase.endsAt.millisecondsSinceEpoch,
       };
+      var fallbackCategory = round?.categoryLabel ?? '';
       payload['round'] = {
         'roundId': phase.roundId,
-        'categoryLabel': round?.categoryLabel ?? '',
+        'categoryLabel': fallbackCategory,
+        'categoryLabelSingular':
+            _categoryLabelSingular(round, fallbackCategory),
+        'categoryLabelPlural': _categoryLabelPlural(round, fallbackCategory),
         'currentSetIndex': phase.setIndex,
         'setPromptCount': setPromptCount,
         'setSuperlatives': _superlativesList(phase.setSuperlatives),
@@ -314,6 +336,7 @@ class StateProjector {
     RoundInstance? round, {
     required bool includeOwner,
     bool includeEliminated = true,
+    PlayerSession? voter,
   }) {
     if (round == null) {
       return const [];
@@ -321,6 +344,13 @@ class StateProjector {
 
     var entries = List<Entry>.of(round.entries)
       ..removeWhere((e) => !includeEliminated && e.status != EntryStatus.active)
+      ..removeWhere((e) =>
+          voter != null &&
+          !SuperlativesValidation.canPlayerVoteForEntry(
+            config: snapshot.config,
+            voter: voter,
+            entry: e,
+          ))
       ..sort((a, b) => a.entryId.compareTo(b.entryId));
 
     return entries.map((e) {
@@ -355,6 +385,20 @@ class StateProjector {
     }
 
     return game.rounds.last;
+  }
+
+  String _categoryLabelSingular(RoundInstance? round, String fallback) {
+    if (round != null && round.categoryLabelSingular.trim().isNotEmpty) {
+      return round.categoryLabelSingular;
+    }
+    return fallback;
+  }
+
+  String _categoryLabelPlural(RoundInstance? round, String fallback) {
+    if (round != null && round.categoryLabelPlural.trim().isNotEmpty) {
+      return round.categoryLabelPlural;
+    }
+    return fallback;
   }
 
   int _remainingSeconds(DateTime endsAt) {
@@ -539,15 +583,16 @@ class StateProjector {
         'superlativeId': prompt.superlativeId,
         'promptText': prompt.promptText,
         'results': {
-          'voteCountByEntry': results?.voteCountByEntry ?? const <String, int>{},
+          'voteCountByEntry':
+              results?.voteCountByEntry ?? const <String, int>{},
           'pointsByEntry': results?.pointsByEntry ?? const <String, int>{},
           'pointsByPlayer': results?.pointsByPlayer ?? const <String, int>{},
         },
       };
     }).toList(growable: false);
 
-    rows.sort((a, b) =>
-        (a['promptIndex'] as int).compareTo(b['promptIndex'] as int));
+    rows.sort(
+        (a, b) => (a['promptIndex'] as int).compareTo(b['promptIndex'] as int));
     return rows;
   }
 
@@ -567,7 +612,8 @@ class StateProjector {
         'superlativeId': prompt.superlativeId,
         'promptText': prompt.promptText,
         'results': {
-          'voteCountByEntry': results?.voteCountByEntry ?? const <String, int>{},
+          'voteCountByEntry':
+              results?.voteCountByEntry ?? const <String, int>{},
           'pointsByEntry': results?.pointsByEntry ?? const <String, int>{},
           'pointsByPlayer': results?.pointsByPlayer ?? const <String, int>{},
         },

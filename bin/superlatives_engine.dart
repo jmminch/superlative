@@ -9,6 +9,8 @@ class GameEngine {
   final Random _random;
   final DateTime Function() _now;
   static const Duration secondEntryGrace = Duration(seconds: 5);
+  static const int nearDuplicateMinLength = 5;
+  static const double nearDuplicateSimilarityThreshold = 0.8;
   String? lastRejectReasonCode;
   Map<String, Object?> lastRejectContext = const <String, Object?>{};
 
@@ -44,6 +46,21 @@ class GameEngine {
     return false;
   }
 
+  bool _rejectEntry(
+    String code, {
+    required String playerId,
+    required String text,
+    Map<String, Object?> context = const <String, Object?>{},
+  }) {
+    lastRejectReasonCode = code;
+    lastRejectContext = <String, Object?>{
+      'playerId': playerId,
+      'text': text,
+      ...context,
+    };
+    return false;
+  }
+
   List<SuperlativePrompt> selectRoundSuperlatives(
     List<SuperlativePrompt> pool, {
     int? count,
@@ -64,6 +81,8 @@ class GameEngine {
     required String hostPlayerId,
     required String firstRoundCategoryId,
     required String firstRoundCategoryLabel,
+    String? firstRoundCategoryLabelSingular,
+    String? firstRoundCategoryLabelPlural,
     required List<SuperlativePrompt> firstRoundSuperlatives,
     DateTime? gameStartingEndsAt,
     bool showGameStartingInstructions = true,
@@ -101,6 +120,8 @@ class GameEngine {
       roundIndex: 0,
       categoryId: firstRoundCategoryId,
       categoryLabel: firstRoundCategoryLabel,
+      categoryLabelSingular: firstRoundCategoryLabelSingular,
+      categoryLabelPlural: firstRoundCategoryLabelPlural,
       superlatives: firstRoundSuperlatives,
       markActive: true,
     )) {
@@ -123,6 +144,8 @@ class GameEngine {
   bool startRound({
     required String categoryId,
     required String categoryLabel,
+    String? categoryLabelSingular,
+    String? categoryLabelPlural,
     required List<SuperlativePrompt> superlatives,
     DateTime? roundIntroEndsAt,
   }) {
@@ -137,6 +160,8 @@ class GameEngine {
       roundIndex: roundIndex,
       categoryId: categoryId,
       categoryLabel: categoryLabel,
+      categoryLabelSingular: categoryLabelSingular,
+      categoryLabelPlural: categoryLabelPlural,
       superlatives: superlatives,
       markActive: true,
     )) {
@@ -147,7 +172,7 @@ class GameEngine {
       RoundIntroPhase(
         roundIndex: roundIndex,
         roundId: _currentRound()!.roundId,
-        categoryLabel: categoryLabel,
+        categoryLabel: categoryLabelSingular ?? categoryLabel,
         superlatives: superlatives,
         endsAt: roundIntroEndsAt ?? _now().add(const Duration(seconds: 5)),
       ),
@@ -212,6 +237,7 @@ class GameEngine {
   }
 
   bool submitEntry({required String playerId, required String text}) {
+    clearLastReject();
     var phase = snapshot.phase;
     if (phase is! EntryInputPhase) {
       return false;
@@ -235,6 +261,46 @@ class GameEngine {
     var round = _currentRound();
     if (round == null) {
       return false;
+    }
+
+    var candidateEntryKey =
+        SuperlativesValidation.canonicalEntryKey(normalizedText);
+    var hasDuplicate = round.entries.any((entry) =>
+        entry.ownerPlayerId != playerId &&
+        SuperlativesValidation.canonicalEntryKey(entry.textOriginal) ==
+            candidateEntryKey);
+    if (hasDuplicate) {
+      return _rejectEntry(
+        'entry_duplicate_exact',
+        playerId: playerId,
+        text: normalizedText,
+      );
+    }
+
+    if (candidateEntryKey.length >= nearDuplicateMinLength) {
+      for (var entry in round.entries) {
+        if (entry.ownerPlayerId == playerId) {
+          continue;
+        }
+        var existingKey =
+            SuperlativesValidation.canonicalEntryKey(entry.textOriginal);
+        if (existingKey.length < nearDuplicateMinLength) {
+          continue;
+        }
+        var similarity = SuperlativesValidation.normalizedSimilarity(
+            existingKey, candidateEntryKey);
+        if (similarity >= nearDuplicateSimilarityThreshold) {
+          return _rejectEntry(
+            'entry_duplicate_near',
+            playerId: playerId,
+            text: normalizedText,
+            context: {
+              'similarity': similarity,
+              'threshold': nearDuplicateSimilarityThreshold,
+            },
+          );
+        }
+      }
     }
 
     var entries = List<Entry>.of(round.entries);
@@ -268,6 +334,8 @@ class GameEngine {
       roundId: round.roundId,
       categoryId: round.categoryId,
       categoryLabel: round.categoryLabel,
+      categoryLabelSingular: round.categoryLabelSingular,
+      categoryLabelPlural: round.categoryLabelPlural,
       entries: entries,
       votePhases: round.votePhases,
       voteSets: round.voteSets,
@@ -459,6 +527,8 @@ class GameEngine {
       roundId: round.roundId,
       categoryId: round.categoryId,
       categoryLabel: round.categoryLabel,
+      categoryLabelSingular: round.categoryLabelSingular,
+      categoryLabelPlural: round.categoryLabelPlural,
       entries: round.entries,
       votePhases: updatedVotePhases,
       voteSets: updatedVoteSets,
@@ -596,6 +666,8 @@ class GameEngine {
       roundId: round.roundId,
       categoryId: round.categoryId,
       categoryLabel: round.categoryLabel,
+      categoryLabelSingular: round.categoryLabelSingular,
+      categoryLabelPlural: round.categoryLabelPlural,
       entries: updatedEntries,
       votePhases: updatedVotePhases,
       voteSets: updatedVoteSets,
@@ -649,6 +721,8 @@ class GameEngine {
   bool completeRound({
     String? nextCategoryId,
     String? nextCategoryLabel,
+    String? nextCategoryLabelSingular,
+    String? nextCategoryLabelPlural,
     List<SuperlativePrompt>? nextRoundSuperlatives,
     DateTime? nextRoundIntroEndsAt,
   }) {
@@ -678,6 +752,8 @@ class GameEngine {
         roundId: round.roundId,
         categoryId: round.categoryId,
         categoryLabel: round.categoryLabel,
+        categoryLabelSingular: round.categoryLabelSingular,
+        categoryLabelPlural: round.categoryLabelPlural,
         entries: round.entries,
         votePhases: round.votePhases,
         voteSets: round.voteSets,
@@ -716,6 +792,8 @@ class GameEngine {
     return startRound(
       categoryId: nextCategoryId,
       categoryLabel: nextCategoryLabel,
+      categoryLabelSingular: nextCategoryLabelSingular,
+      categoryLabelPlural: nextCategoryLabelPlural,
       superlatives: nextRoundSuperlatives,
       roundIntroEndsAt: nextRoundIntroEndsAt,
     );
@@ -739,6 +817,8 @@ class GameEngine {
     required int roundIndex,
     required String categoryId,
     required String categoryLabel,
+    String? categoryLabelSingular,
+    String? categoryLabelPlural,
     required List<SuperlativePrompt> superlatives,
     required bool markActive,
   }) {
@@ -790,6 +870,8 @@ class GameEngine {
       roundId: 'round_${roundIndex + 1}',
       categoryId: categoryId,
       categoryLabel: categoryLabel,
+      categoryLabelSingular: categoryLabelSingular,
+      categoryLabelPlural: categoryLabelPlural,
       entries: const [],
       votePhases: votePhases,
       voteSets: voteSets,
